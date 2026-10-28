@@ -1,0 +1,12 @@
+# 编辑器 / 工具本地配置
+.opencode/
+
+# 系统与临时文件
+Thumbs.db
+Desktop.ini
+*.tmp
+test_out.txt
+test_full_output.txt
+
+# Node
+node_modules/
