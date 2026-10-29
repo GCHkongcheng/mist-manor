@@ -6,7 +6,7 @@
 
 报名链接：https://developer.huaweicloud.com/signup/51737076bf2e4cffba95336b959e2798
 
-**在线试玩**：https://gchkongcheng.github.io/mist-manor/
+**在线试玩**：https://mist.gchkc.top
 
 ## 玩法
 
