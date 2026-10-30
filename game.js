@@ -25,6 +25,13 @@
   const progressLabelEl = $("progress-label");
   const endingTitleEl = $("ending-title");
   const endingTextEl = $("ending-text");
+  const endingSkipHint = $("ending-skip-hint");
+  const waxEnvelope = $("wax-envelope");
+  const waxSealBtn = $("wax-seal-btn");
+  const mbtiBox = $("mbti-box");
+  const mbtiFront = $("mbti-front");
+  const mbtiFrontTitle = $("mbti-front-title");
+  const mbtiFlipBackBtn = $("mbti-flip-back-btn");
   const mbtiCode = $("mbti-code");
   const mbtiName = $("mbti-name");
   const mbtiRole = $("mbti-role");
@@ -51,6 +58,10 @@
   const saveSlotsEl = $("save-slots");
   const exportBtn = $("export-btn");
   const importBtn = $("import-btn");
+  const importBox = $("import-box");
+  const importInput = $("import-input");
+  const importConfirmBtn = $("import-confirm-btn");
+  const importStatus = $("import-status");
   const settingsClose = $("settings-close");
   const historyClose = $("history-close");
   const quitBtn = $("quit-btn");
@@ -162,6 +173,7 @@
   let nextTimer = null;
   let log = [];              // 历史记录 {chapter, text, chosen}
   let undoStack = [];
+  let pendingChoiceSnap = null; // 选后反馈停留期间的节点入口快照，防止中途存盘导致二次计分
 
   // 生成平行题库掩码：首局全用第 1 套；第 2 局全用第 2 套；第 3 局起每题随机抽一套
   function buildVariantMap() {
@@ -198,28 +210,36 @@
     affinity = Object.assign({}, snap.affinity);
     variantMap = Object.assign({}, snap.variantMap || {});
     log = snap.history.slice();
+    pendingChoiceSnap = null;
   }
 
   // ---------- 存档 ----------
   const SAVE_VERSION = 2;
   const SAVE_UNDO_MAX = 5;
+  function buildSavePayload() {
+    const base = pendingChoiceSnap || snapshot();
+    const stack = pendingChoiceSnap
+      ? undoStack.slice(0, Math.max(0, undoStack.length - 1)).slice(-SAVE_UNDO_MAX)
+      : undoStack.slice(-SAVE_UNDO_MAX);
+    return {
+      version: SAVE_VERSION,
+      nodeId: base.nodeId,
+      choiceIndex: base.choiceIndex,
+      scores: Object.assign({}, base.scores),
+      flags: Object.assign({}, base.flags),
+      affinity: Object.assign({}, base.affinity),
+      variantMap: Object.assign({}, base.variantMap),
+      history: base.history.slice(),
+      undoStack: stack,
+      savedAt: Date.now()
+    };
+  }
   function saveGame() {
     if (currentEnding) {
       try { localStorage.removeItem(K_SAVE); } catch (e) {}
       return;
     }
-    const data = {
-      version: SAVE_VERSION,
-      nodeId: currentNodeId,
-      choiceIndex: choiceIndex,
-      scores: scores,
-      flags: flags,
-      affinity: affinity,
-      variantMap: variantMap,
-      history: log,
-      undoStack: undoStack.slice(-SAVE_UNDO_MAX),
-      savedAt: Date.now()
-    };
+    const data = buildSavePayload();
     try { localStorage.setItem(K_SAVE, JSON.stringify(data)); } catch (e) {}
     updateContinueBtn();
   }
@@ -260,12 +280,19 @@
     }
   }
 
-  // ---------- 三槽位手动存档 ----------
+  // ---------- 三槽位手动存档（含进度/时间展示与覆盖/读档二次确认） ----------
   function getSlots() {
     try {
       const arr = JSON.parse(localStorage.getItem(K_SLOTS));
       return Array.isArray(arr) ? [arr[0] || null, arr[1] || null, arr[2] || null] : [null, null, null];
     } catch (e) { return [null, null, null]; }
+  }
+  function resetSlotBtnConfirm(btn, defaultLabel) {
+    if (!btn) return;
+    if (btn._confirmTimer) { clearTimeout(btn._confirmTimer); btn._confirmTimer = null; }
+    delete btn.dataset.confirm;
+    btn.classList.remove("confirm-warn");
+    btn.textContent = defaultLabel;
   }
   function renderSlots() {
     if (!saveSlotsEl) return;
@@ -278,40 +305,61 @@
       const nameEl = row.querySelector(".slot-name");
       const saveBtn = row.querySelector(".slot-save");
       const loadBtn = row.querySelector(".slot-load");
+      resetSlotBtnConfirm(saveBtn, "存");
+      resetSlotBtnConfirm(loadBtn, "读");
       if (s) {
         const ch = (NODES[s.nodeId] && NODES[s.nodeId].chapter) ? NODES[s.nodeId].chapter : s.nodeId;
-        nameEl.textContent = names[idx] + " · " + ch;
+        const stepInfo = (typeof s.choiceIndex === "number" ? s.choiceIndex : 0) + "/" + TOTAL_CHOICES + "问";
+        const elapsed = formatElapsed(s.savedAt);
+        const fullLabel = names[idx] + " · " + ch + "（" + stepInfo + " · " + elapsed + "）";
+        nameEl.textContent = fullLabel;
+        nameEl.title = fullLabel;
         loadBtn.classList.remove("hidden");
       } else {
         nameEl.textContent = names[idx] + " · 空";
+        nameEl.title = names[idx] + " · 空";
         loadBtn.classList.add("hidden");
       }
       saveBtn.disabled = !inGame;
     });
   }
-  function saveToSlot(idx) {
+  function saveToSlot(idx, saveBtn) {
     if (currentEnding || gameScreen.classList.contains("hidden")) return;
     const slots = getSlots();
-    slots[idx] = {
-      version: SAVE_VERSION,
-      nodeId: currentNodeId,
-      choiceIndex: choiceIndex,
-      scores: Object.assign({}, scores),
-      flags: Object.assign({}, flags),
-      affinity: Object.assign({}, affinity),
-      variantMap: Object.assign({}, variantMap),
-      history: log.slice(),
-      undoStack: undoStack.slice(-SAVE_UNDO_MAX),
-      savedAt: Date.now()
-    };
+    const hasExisting = validSave(slots[idx]);
+    // 槽位已有存档时，需二次点击确认覆盖，避免误触丢失旧档
+    if (hasExisting && saveBtn && saveBtn.dataset.confirm !== "1") {
+      saveBtn.dataset.confirm = "1";
+      saveBtn.classList.add("confirm-warn");
+      saveBtn.textContent = "覆盖?";
+      AudioEngine.playSfx("click");
+      if (saveBtn._confirmTimer) clearTimeout(saveBtn._confirmTimer);
+      saveBtn._confirmTimer = setTimeout(function () {
+        resetSlotBtnConfirm(saveBtn, "存");
+      }, 3000);
+      return;
+    }
+    slots[idx] = buildSavePayload();
     try { localStorage.setItem(K_SLOTS, JSON.stringify(slots)); } catch (e) {}
     AudioEngine.playSfx("click");
     renderSlots();
   }
-  function loadFromSlot(idx) {
+  function loadFromSlot(idx, loadBtn) {
     const slots = getSlots();
     const s = validSave(slots[idx]) ? slots[idx] : null;
     if (!s) return;
+    const hasActiveProgress = !gameScreen.classList.contains("hidden") && !currentEnding && (choiceIndex > 0 || log.length > 1);
+    if (hasActiveProgress && loadBtn && loadBtn.dataset.confirm !== "1") {
+      loadBtn.dataset.confirm = "1";
+      loadBtn.classList.add("confirm-warn");
+      loadBtn.textContent = "确读?";
+      AudioEngine.playSfx("click");
+      if (loadBtn._confirmTimer) clearTimeout(loadBtn._confirmTimer);
+      loadBtn._confirmTimer = setTimeout(function () {
+        resetSlotBtnConfirm(loadBtn, "读");
+      }, 3000);
+      return;
+    }
     try { localStorage.setItem(K_SAVE, JSON.stringify(s)); } catch (e) {}
     AudioEngine.playSfx("click");
     startGame(false);
@@ -335,27 +383,89 @@
     "结局三 · 过客：第六章道过晚安回房歇息",
     "结局四 · 归还（隐藏）：晚宴中对主人与沈先生均多留一份体谅与分寸，第六章将浮现第四个选择"
   ];
+  const ENDING_NAMES = ["真相", "门后", "过客", "归还"];
+
+  // 图鉴与名片夹点击详情预览（兼顾触屏与收集回看）
+  function toggleCollectionDetail(scope, key, builder) {
+    const detailEl = $("collection-detail-" + scope);
+    if (!detailEl) return;
+    const wrap = detailEl.parentElement;
+    if (detailEl.dataset.activeKey === key && !detailEl.classList.contains("hidden")) {
+      detailEl.classList.add("hidden");
+      detailEl.dataset.activeKey = "";
+      if (wrap) {
+        wrap.querySelectorAll(".gallery-slot.active, .card-slot.active").forEach(function (b) {
+          b.classList.remove("active");
+        });
+      }
+      return;
+    }
+    detailEl.dataset.activeKey = key;
+    detailEl.innerHTML = "";
+    builder(detailEl);
+    detailEl.classList.remove("hidden");
+    AudioEngine.playSfx("click");
+  }
+
   function renderGallery() {
     const g = getGallery();
     const ALL = ["endingA", "endingB", "endingC", "endingD"];
-    ["gallery-title", "gallery-result"].forEach(function (id) {
-      const el = $(id);
+    ["title", "result"].forEach(function (scope) {
+      const el = $("gallery-" + scope);
       if (!el) return;
       el.innerHTML = "";
+      const detailEl = $("collection-detail-" + scope);
+      if (detailEl) {
+        detailEl.classList.add("hidden");
+        detailEl.dataset.activeKey = "";
+      }
       ALL.forEach(function (eid, idx) {
-        const slot = document.createElement("span");
-        slot.className = "gallery-slot" + (g[eid] ? " unlocked" : "");
-        slot.title = g[eid] ? NODES[eid].endingTitle : ENDING_HINTS[idx];
-        slot.textContent = g[eid] ? ["真相", "门后", "过客", "归还"][idx] : "?";
+        const unlocked = !!g[eid];
+        const slot = document.createElement("button");
+        slot.type = "button";
+        slot.className = "gallery-slot" + (unlocked ? " unlocked" : "");
+        slot.title = unlocked ? NODES[eid].endingTitle : ENDING_HINTS[idx];
+        slot.textContent = unlocked ? ENDING_NAMES[idx] : "?";
+        slot.setAttribute("aria-label", unlocked ? NODES[eid].endingTitle : ("未解锁结局 " + (idx + 1) + " 线索"));
+        slot.addEventListener("click", function () {
+          const wrap = el.parentElement;
+          const wasActive = slot.classList.contains("active");
+          if (wrap) {
+            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active").forEach(function (b) {
+              b.classList.remove("active");
+            });
+          }
+          if (!wasActive) slot.classList.add("active");
+          toggleCollectionDetail(scope, "ending:" + eid, function (box) {
+            const head = document.createElement("div");
+            head.className = "collection-detail-head";
+            const titleSpan = document.createElement("span");
+            titleSpan.textContent = unlocked ? NODES[eid].endingTitle : ("结局" + ["一", "二", "三", "四"][idx] + " · 未解锁");
+            const tagSpan = document.createElement("span");
+            tagSpan.className = "collection-detail-tag";
+            tagSpan.textContent = unlocked ? "已收录" : "解锁线索";
+            head.appendChild(titleSpan);
+            head.appendChild(tagSpan);
+            box.appendChild(head);
+            const body = document.createElement("p");
+            body.className = "collection-detail-body";
+            body.textContent = unlocked
+              ? (NODES[eid].body.replace(/\n+/g, " ") + "（" + ENDING_HINTS[idx] + "）")
+              : ENDING_HINTS[idx];
+            box.appendChild(body);
+          });
+        });
         el.appendChild(slot);
       });
     });
     const got = Object.keys(g).length;
     if (titleHint) {
       if (got > 0 && got < 4) {
-        titleHint.textContent = "已解锁 " + got + "/4 个结局 · 新一局将启用平行题库，悬停图鉴可看线索";
+        titleHint.textContent = "已解锁 " + got + "/4 个结局 · 新一局将启用平行题库，点击图鉴可看线索";
       } else if (got === 4) {
         titleHint.textContent = "四条结局已悉数走遍 · 庄园的门永远为你敞开";
+      } else {
+        titleHint.textContent = "约 6 分钟 · 4 个结局 · 双题库重玩不重样";
       }
     }
     resetGalleryBtn.classList.toggle("hidden", got === 0 && Object.keys(getCards()).length === 0);
@@ -382,20 +492,63 @@
   function renderCards() {
     const c = getCards();
     const got = Object.keys(c).length;
-    ["cards-title", "cards-result"].forEach(function (id) {
-      const el = $(id);
+    ["title", "result"].forEach(function (scope) {
+      const el = $("cards-" + scope);
       if (!el) return;
       el.innerHTML = "";
       ALL_TYPES.forEach(function (code) {
-        const slot = document.createElement("span");
-        slot.className = "card-slot" + (c[code] ? " unlocked" : "");
-        if (c[code] && MBTI_TYPES[code]) {
+        const unlocked = !!(c[code] && MBTI_TYPES[code]);
+        const t = MBTI_TYPES[code];
+        const slot = document.createElement("button");
+        slot.type = "button";
+        slot.className = "card-slot" + (unlocked ? " unlocked" : "");
+        slot.dataset.code = code;
+        if (unlocked) {
           slot.textContent = code;
-          slot.title = MBTI_TYPES[code].name + " · " + MBTI_TYPES[code].role;
+          slot.title = t.name + " · " + t.role;
+          slot.setAttribute("aria-label", code + " " + t.name + " 已解锁名片");
         } else {
           slot.textContent = "·";
           slot.title = "名片 " + code + " · 未解锁";
+          slot.setAttribute("aria-label", "名片 " + code + " 未解锁");
         }
+        slot.addEventListener("click", function () {
+          const wrap = el.parentElement;
+          const wasActive = slot.classList.contains("active");
+          if (wrap) {
+            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active").forEach(function (b) {
+              b.classList.remove("active");
+            });
+          }
+          if (!wasActive) slot.classList.add("active");
+          toggleCollectionDetail(scope, "card:" + code, function (box) {
+            const head = document.createElement("div");
+            head.className = "collection-detail-head";
+            const titleSpan = document.createElement("span");
+            titleSpan.textContent = unlocked ? (t.code + " · " + t.name) : ("名片 " + code + (t ? " · " + t.name : ""));
+            const tagSpan = document.createElement("span");
+            tagSpan.className = "collection-detail-tag";
+            tagSpan.textContent = unlocked ? "已收录名片" : "尚未收录";
+            head.appendChild(titleSpan);
+            head.appendChild(tagSpan);
+            box.appendChild(head);
+            if (unlocked) {
+              const roleP = document.createElement("p");
+              roleP.className = "collection-detail-role";
+              roleP.textContent = "「" + t.role + "」";
+              const descP = document.createElement("p");
+              descP.className = "collection-detail-body";
+              descP.textContent = t.desc;
+              box.appendChild(roleP);
+              box.appendChild(descP);
+            } else {
+              const body = document.createElement("p");
+              body.className = "collection-detail-body";
+              body.textContent = "在晚宴的 12 次抉择中，当四维度倾向汇聚为 " + code + " 时，庄园主人将为你奉上这张拜访名片。";
+              box.appendChild(body);
+            }
+          });
+        });
         el.appendChild(slot);
       });
       const label = el.previousElementSibling;
@@ -407,9 +560,15 @@
     resetGalleryBtn.classList.toggle("hidden", Object.keys(g).length === 0 && got === 0);
   }
 
-  // ---------- 场景光照与交互隐喻 ----------
+  // ---------- 场景光照、交互隐喻与烛光端详增强 ----------
+  const INSPECT_NODES = {
+    ch2: true, s2: true, ch4: true,
+    A0: true, A1: true, A2: true, A3: true,
+    B0: true, B1: true, Bs1: true
+  };
   function applyNodeFx(node) {
     appEl.classList.remove("fx-shatter");
+    appEl.classList.toggle("candle-inspect", !!INSPECT_NODES[node.id]);
     document.body.classList.remove("tint-blue", "tint-gold");
     document.body.dataset.lighting = node.lighting || "foyer";
     if (node.effect === "shatter") {
@@ -445,13 +604,66 @@
     return readSet.indexOf(readKey(nodeId)) >= 0;
   }
 
-  // ---------- 打字机（版面高度预留） ----------
+  // ---------- 富文本解析（将 **...** 解析为 <em class="story-em">）与打字机 ----------
+  function parseRichText(raw) {
+    const str = String(raw || "");
+    const segments = [];
+    const chars = [];
+    const re = /\*\*(.+?)\*\*/g;
+    let lastIdx = 0;
+    let m;
+    while ((m = re.exec(str)) !== null) {
+      if (m.index > lastIdx) {
+        const plainArr = Array.from(str.slice(lastIdx, m.index));
+        segments.push({ chars: plainArr, em: false });
+        Array.prototype.push.apply(chars, plainArr);
+      }
+      const emArr = Array.from(m[1]);
+      segments.push({ chars: emArr, em: true });
+      Array.prototype.push.apply(chars, emArr);
+      lastIdx = re.lastIndex;
+    }
+    if (lastIdx < str.length) {
+      const tailArr = Array.from(str.slice(lastIdx));
+      segments.push({ chars: tailArr, em: false });
+      Array.prototype.push.apply(chars, tailArr);
+    }
+    return { segments: segments, chars: chars };
+  }
+
+  function fillRichSlice(container, segments, startIdx, endIdx) {
+    container.textContent = "";
+    let pos = 0;
+    for (let s = 0; s < segments.length; s++) {
+      const seg = segments[s];
+      const len = seg.chars.length;
+      const segStart = pos;
+      const segEnd = pos + len;
+      pos = segEnd;
+      if (segEnd <= startIdx || segStart >= endIdx) continue;
+      const from = Math.max(0, startIdx - segStart);
+      const to = Math.min(len, endIdx - segStart);
+      const sliceStr = seg.chars.slice(from, to).join("");
+      if (!sliceStr) continue;
+      if (seg.em) {
+        const emEl = document.createElement("em");
+        emEl.className = "story-em";
+        emEl.textContent = sliceStr;
+        container.appendChild(emEl);
+      } else {
+        container.appendChild(document.createTextNode(sliceStr));
+      }
+    }
+  }
+
   function typeText(text, target, done, alreadyRead) {
     clearTyping();
     isTyping = true;
     target.classList.add("typing");
     target.setAttribute("aria-busy", "true");
-    const chars = Array.from(text);
+    const parsed = parseRichText(text);
+    const chars = parsed.chars;
+    const segments = parsed.segments;
     let i = 0;
     const spd = SPEEDS[settings.speed];
     const shownEl = document.createElement("span");
@@ -459,14 +671,14 @@
     const restEl = document.createElement("span");
     restEl.style.visibility = "hidden";
     restEl.setAttribute("aria-hidden", "true");
-    restEl.textContent = text;
+    fillRichSlice(restEl, segments, 0, chars.length);
     target.textContent = "";
     target.appendChild(shownEl);
     target.appendChild(restEl);
 
     const skip = (settings.skipRead && alreadyRead && spd.base > 0) || spd.base === 0;
     if (skip) {
-      target.textContent = text;
+      fillRichSlice(target, segments, 0, chars.length);
       finishTyping(target);
       if (done) done();
       return;
@@ -474,14 +686,15 @@
 
     function step() {
       if (i >= chars.length) {
+        fillRichSlice(target, segments, 0, chars.length);
         finishTyping(target);
         if (done) done();
         return;
       }
       const ch = chars[i];
       i++;
-      shownEl.textContent += ch;
-      restEl.textContent = chars.slice(i).join("");
+      fillRichSlice(shownEl, segments, 0, i);
+      fillRichSlice(restEl, segments, i, chars.length);
       const delay = /[。，；！？、\n」』——…]/.test(ch) ? spd.punct : spd.base;
       typingTimer = setTimeout(step, delay);
     }
@@ -489,7 +702,7 @@
     target.onclick = function () {
       if (!isTyping) return;
       clearTyping();
-      target.textContent = text;
+      fillRichSlice(target, segments, 0, chars.length);
       finishTyping(target);
       if (done) done();
     };
@@ -597,7 +810,8 @@
       if (h.text) {
         const li2 = document.createElement("li");
         li2.className = "history-item";
-        li2.textContent = h.text;
+        const parsedH = parseRichText(h.text);
+        fillRichSlice(li2, parsedH.segments, 0, parsedH.chars.length);
         historyList.appendChild(li2);
       }
       if (h.chosen) {
@@ -610,23 +824,66 @@
     setTimeout(function () { historyList.scrollTop = historyList.scrollHeight; }, 0);
   }
 
+  // ---------- 序章火漆信封开场仪式 ----------
+  let pendingPrologueStart = null;
+  function unsealEnvelope() {
+    if (!waxEnvelope) return;
+    waxEnvelope.classList.add("unsealed");
+    gameScreen.classList.remove("seal-locked");
+    AudioEngine.playSfx("seal");
+    if (pendingPrologueStart) {
+      const fn = pendingPrologueStart;
+      pendingPrologueStart = null;
+      fn();
+    }
+  }
+
   // ---------- 节点播放 ----------
   function playNode(nodeId, replay) {
     const node = NODES[nodeId];
     if (!node) { console.error("未知节点: " + nodeId); return; }
     currentNodeId = nodeId;
+    pendingPrologueStart = null;
+    pendingChoiceSnap = null;
     optionsEl.innerHTML = "";
     applyNodeFx(node);
     updateUndoBar();
-    saveGame();
+
+    if (waxEnvelope) {
+      if (nodeId === "prologue") {
+        waxEnvelope.classList.remove("hidden");
+        if (!replay) {
+          waxEnvelope.classList.remove("unsealed");
+        } else {
+          waxEnvelope.classList.add("unsealed");
+        }
+      } else {
+        waxEnvelope.classList.add("hidden");
+        gameScreen.classList.remove("seal-locked");
+      }
+    }
 
     if (node.type === "narrative") {
       const resolved = Engine.resolveNode(node, flags, variantMap);
       chapterEl.textContent = node.chapter || "";
       renderProgress();
       if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
+      saveGame();
       const wasRead = isRead(nodeId);
       markRead(nodeId);
+
+      // 非立即档且首次进入序章时，先展示封缄火漆信封，待点击火漆印（或按空格）后启封打字
+      if (nodeId === "prologue" && !replay && settings.speed !== "instant" && !settings.auto) {
+        gameScreen.classList.add("seal-locked");
+        pendingPrologueStart = function () {
+          typeText(resolved.text, storyEl, function () {
+            showContinueHint(function () { playNode(node.next); });
+          }, wasRead);
+        };
+        return;
+      }
+
+      gameScreen.classList.remove("seal-locked");
       typeText(resolved.text, storyEl, function () {
         showContinueHint(function () { playNode(node.next); });
       }, wasRead);
@@ -638,6 +895,7 @@
       chapterEl.textContent = node.chapter || "";
       renderProgress();
       if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
+      saveGame();
       const wasRead = isRead(nodeId);
       markRead(nodeId);
       typeText(resolved.text, storyEl, function () {
@@ -683,14 +941,34 @@
     });
   }
 
+  function renderFeedbackContent(fbEl, feedbackText) {
+    const raw = String(feedbackText || "");
+    const m = raw.match(/^(.*?)(\s*〔[^〕]+〕)$/);
+    if (m) {
+      fbEl.appendChild(document.createTextNode(m[1]));
+      const badge = document.createElement("span");
+      badge.className = "affinity-badge";
+      badge.textContent = m[2].trim();
+      fbEl.appendChild(badge);
+    } else {
+      fbEl.textContent = raw;
+    }
+  }
+
   function chooseOption(node, opt, btn) {
     const all = optionsEl.querySelectorAll(".option-card");
-    all.forEach(function (b) { b.disabled = true; });
+    all.forEach(function (b) {
+      b.disabled = true;
+      b.style.transitionDelay = "0s";
+      if (b !== btn) b.classList.add("option-dismissed");
+    });
     btn.classList.add("chosen");
     AudioEngine.playSfx("click");
     dismissToolbarGuide();
 
-    undoStack.push(snapshot());
+    const preSnap = snapshot();
+    pendingChoiceSnap = preSnap;
+    undoStack.push(preSnap);
     if (undoStack.length > 20) undoStack.shift();
 
     pushHistory({ chosen: opt.text });
@@ -698,18 +976,20 @@
     if (Engine.applyOption(scores, flags, affinity, opt)) choiceIndex++;
     renderProgress();
 
-    // 选后反馈：呈现反馈正文 + 玩家可控的「继续（空格）」按钮（Auto 模式自动继续）
+    // 选后反馈：保留所选卡片定格，收起未选项后平滑浮现反馈正文 + 「继续（空格）」按钮
     clearNext();
     nextTimer = setTimeout(function () {
       nextTimer = null;
-      optionsEl.innerHTML = "";
+      optionsEl.querySelectorAll(".option-card:not(.chosen)").forEach(function (b) {
+        if (b.parentNode === optionsEl) optionsEl.removeChild(b);
+      });
       const fb = document.createElement("p");
       fb.className = "feedback";
-      fb.textContent = opt.feedback;
+      renderFeedbackContent(fb, opt.feedback);
       optionsEl.appendChild(fb);
       updateUndoBar();
       showContinueHint(function () { playNode(opt.next); });
-    }, 320);
+    }, 280);
   }
 
   // ---------- 撤销 ----------
@@ -761,6 +1041,13 @@
     return Engine.buildEndingText(node, flags);
   }
 
+  function flipMbtiCard(toBack) {
+    if (!mbtiBox) return;
+    const wantFlip = typeof toBack === "boolean" ? toBack : !mbtiBox.classList.contains("is-flipped");
+    mbtiBox.classList.toggle("is-flipped", wantFlip);
+    AudioEngine.playSfx(wantFlip ? "flip" : "click");
+  }
+
   function showResult(ending) {
     gameScreen.classList.add("hidden");
     toolbar.classList.add("hidden");
@@ -770,15 +1057,17 @@
     AudioEngine.playSfx("reveal");
 
     endingTitleEl.textContent = ending.endingTitle;
+    if (mbtiFrontTitle) mbtiFrontTitle.textContent = ending.endingTitle;
+    if (mbtiBox) mbtiBox.classList.remove("is-flipped");
     const fullText = buildEndingText(ending);
+    if (endingSkipHint) {
+      endingSkipHint.classList.toggle("hidden", settings.speed === "instant");
+    }
     typeText(fullText, endingTextEl, function () {
-      const mbtiBox = $("mbti-box");
+      if (endingSkipHint) endingSkipHint.classList.add("hidden");
       if (mbtiBox) mbtiBox.classList.add("mbti-show");
       AudioEngine.playSfx("chime");
     });
-    if (settings.speed === "instant") {
-      $("mbti-box").classList.add("mbti-show");
-    }
 
     const m = computeMBTI();
     mbtiCode.textContent = m.code;
@@ -861,11 +1150,12 @@
     const shareTitle = "迷雾庄园 · " + currentEnding.endingTitle;
     const shareSummary =
       "晚宴为我写下的画像——" + m.code + " · " + m.name + "\n" + m.role;
+    const cleanEndingText = buildEndingText(currentEnding).replace(/\*\*(.+?)\*\*/g, "$1");
     const text =
       shareTitle + "\n" +
-      buildEndingText(currentEnding) + "\n\n" +
+      cleanEndingText + "\n\n" +
       shareSummary + "\n\n" +
-      "来迷雾庄园，赴一场测出你十六型人格的晚宴。\n" +
+      "来迷雾庄园，赴一场测出你十六型人格的晚宴：https://mist.gchkc.top\n" +
       "四条剧情线 · 一个隐藏结局 · 我已解锁 " + got + "/4 个结局 · 名片夹 " + cardsGot + "/16 型";
     if (canShare()) {
       navigator.share({ title: shareTitle, text: text })
@@ -898,17 +1188,58 @@
     setTimeout(updateShareBtn, 1800);
   }
 
+  // 提炼本局专属晚宴轨迹印记（供名片图展示个性化足迹）
+  const FOOTPRINT_LABELS = [
+    { flag: "flag_loud",      label: "推门自报来意" },
+    { flag: "flag_quiet",     label: "叩环静候檐下" },
+    { flag: "flag_frame",     label: "轻翻覆面银框" },
+    { flag: "flag_detail",    label: "细辨1887画款" },
+    { flag: "flag_sigh",      label: "凝望黑裙背影" },
+    { flag: "flag_guest",     label: "与沈先生同席" },
+    { flag: "flag_photo",     label: "瞥见滑落旧照" },
+    { flag: "flag_mercy",     label: "温言解围碎瓷" },
+    { flag: "flag_logic",     label: "冷静建言锔补" },
+    { flag: "flag_chronicle", label: "校对百年日志" },
+    { flag: "flag_return",    label: "银匙归还陈列" },
+    { flag: "flag_keep",      label: "带走百年银匙" },
+    { flag: "flag_room",      label: "推开纸星小门" },
+    { flag: "flag_respect",   label: "守礼未启小门" },
+    { flag: "flag_find",      label: "荒草拾得旧匙" },
+    { flag: "flag_hook",      label: "井台挂回银匙" },
+    { flag: "flag_song",      label: "井畔静立听曲" },
+    { flag: "flag_rose",      label: "井台播撒蔷薇" },
+    { flag: "flag_stone",     label: "井畔立碑为记" }
+  ];
+  function buildFootprints() {
+    const picked = [];
+    // 优先取线内特征旗标 + 公共线代表旗标，凑齐 3 枚印记
+    for (let i = FOOTPRINT_LABELS.length - 1; i >= 0; i--) {
+      if (flags[FOOTPRINT_LABELS[i].flag]) {
+        picked.unshift(FOOTPRINT_LABELS[i].label);
+        if (picked.length >= 3) break;
+      }
+    }
+    return picked;
+  }
+
   function saveCard() {
     if (!currentEnding) return;
+    if (mbtiBox && mbtiBox.classList.contains("mbti-show") && !mbtiBox.classList.contains("is-flipped")) {
+      flipMbtiCard(true);
+    }
+    const gotEndings = Object.keys(getGallery()).length;
+    const gotCards = Object.keys(getCards()).length;
     CardExporter.saveCardImage({
       mbti: computeMBTI(),
       endingTitle: currentEnding.endingTitle,
       scores: scores,
-      dims: MBTI_DIMS
+      dims: MBTI_DIMS,
+      footprints: buildFootprints(),
+      collectionSummary: "已解锁 " + gotEndings + "/4 结局 · 名片夹 " + gotCards + "/16 型"
     }, cardBtn);
   }
 
-  // ---------- 进度备份导出 / 导入 ----------
+  // ---------- 进度备份导出 / 导入（面板内联交互，无阻塞弹窗） ----------
   function exportBackup() {
     const payload = {
       v: 1,
@@ -921,11 +1252,14 @@
     exportBtn.textContent = "备份码已复制";
     setTimeout(function () { exportBtn.textContent = "导出备份码"; }, 1800);
   }
-  function importBackup() {
-    const raw = window.prompt("请粘贴之前导出的进度备份码：");
-    if (!raw) return;
+  function applyBackupCode(raw) {
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) {
+      if (importStatus) importStatus.textContent = "请先粘贴备份码。";
+      return false;
+    }
     try {
-      const data = JSON.parse(decodeURIComponent(escape(atob(raw.trim()))));
+      const data = JSON.parse(decodeURIComponent(escape(atob(trimmed))));
       if (!data || typeof data !== "object") throw new Error("bad");
       if (data.gallery && typeof data.gallery === "object") {
         localStorage.setItem(K_GALLERY, JSON.stringify(data.gallery));
@@ -939,10 +1273,27 @@
       renderGallery();
       renderCards();
       updateContinueBtn();
+      if (importStatus) importStatus.textContent = "恢复成功！图鉴与存档已同步。";
       importBtn.textContent = "已恢复";
-      setTimeout(function () { importBtn.textContent = "导入恢复"; }, 1800);
+      setTimeout(function () {
+        importBtn.textContent = "导入恢复";
+        if (importBox) importBox.classList.add("hidden");
+        if (importStatus) importStatus.textContent = "";
+      }, 1500);
+      return true;
     } catch (e) {
-      window.alert("备份码无效或已损坏，请检查是否复制完整。");
+      if (importStatus) importStatus.textContent = "备份码无效或已损坏，请检查是否复制完整。";
+      return false;
+    }
+  }
+  function toggleImportBox() {
+    if (!importBox) return;
+    const willOpen = importBox.classList.contains("hidden");
+    importBox.classList.toggle("hidden", !willOpen);
+    if (importStatus) importStatus.textContent = "";
+    if (willOpen && importInput) {
+      importInput.value = "";
+      importInput.focus();
     }
   }
 
@@ -977,6 +1328,7 @@
     settingsPanel.classList.add("hidden");
     historyPanel.classList.add("hidden");
     panel.classList.remove("hidden");
+    document.body.classList.add("panel-open");
     const f = focusables(panel);
     const primary = panel.querySelector(".btn-primary") || f[0];
     if (primary) primary.focus();
@@ -985,6 +1337,9 @@
     const had = !!activePanel();
     settingsPanel.classList.add("hidden");
     historyPanel.classList.add("hidden");
+    document.body.classList.remove("panel-open");
+    if (importBox) importBox.classList.add("hidden");
+    if (importStatus) importStatus.textContent = "";
     if (had && lastFocus && lastFocus.offsetParent !== null && lastFocus.focus) lastFocus.focus();
     if (had) lastFocus = null;
   }
@@ -1019,6 +1374,10 @@
     saveSettings();
     applySettingsUI();
     if (settings.auto) {
+      if (gameScreen.classList.contains("seal-locked")) {
+        unsealEnvelope();
+        return;
+      }
       const hint = optionsEl.querySelector(".btn-ghost:not(:disabled)");
       if (hint && hint.textContent.indexOf("继续") >= 0) hint.click();
     } else {
@@ -1076,8 +1435,17 @@
     storyEl.onclick = null;
     endingTextEl.textContent = "";
     endingTextEl.onclick = null;
-    const mbtiBox = $("mbti-box");
-    if (mbtiBox) mbtiBox.classList.remove("mbti-show");
+    pendingPrologueStart = null;
+    pendingChoiceSnap = null;
+    if (endingSkipHint) endingSkipHint.classList.add("hidden");
+    if (waxEnvelope) {
+      waxEnvelope.classList.add("hidden");
+      waxEnvelope.classList.remove("unsealed");
+    }
+    gameScreen.classList.remove("seal-locked");
+    if (mbtiBox) {
+      mbtiBox.classList.remove("mbti-show", "is-flipped");
+    }
     optionsEl.innerHTML = "";
     chapterEl.textContent = "";
     progressEl.innerHTML = "";
@@ -1114,8 +1482,30 @@
     }
     if (panelOpen) return;
 
+    const inResult = !resultScreen.classList.contains("hidden");
+    if (inResult && (e.key === " " || e.code === "Space")) {
+      if (isTyping) {
+        e.preventDefault();
+        endingTextEl.click();
+        return;
+      }
+      if (mbtiBox && mbtiBox.classList.contains("mbti-show") && !mbtiBox.classList.contains("is-flipped")) {
+        e.preventDefault();
+        flipMbtiCard(true);
+        return;
+      }
+    }
+
     const inGame = !gameScreen.classList.contains("hidden");
     if (!inGame) return;
+
+    if (e.key === " " || e.code === "Space") {
+      if (gameScreen.classList.contains("seal-locked")) {
+        e.preventDefault();
+        unsealEnvelope();
+        return;
+      }
+    }
 
     if (/^[1-4]$/.test(e.key)) {
       const cards = optionsEl.querySelectorAll(".option-card:not(:disabled)");
@@ -1145,7 +1535,6 @@
   if (titleRainBtn) {
     titleRainBtn.addEventListener("click", function () {
       settings.rain = !settings.rain;
-      if (settings.rain && !settings.sfx) settings.sfx = true;
       saveSettings();
       applySettingsUI();
     });
@@ -1153,6 +1542,59 @@
   againBtn.addEventListener("click", function () { startGame(true); });
   shareBtn.addEventListener("click", shareResult);
   cardBtn.addEventListener("click", saveCard);
+  if (endingSkipHint) {
+    endingSkipHint.addEventListener("click", function () {
+      if (isTyping) endingTextEl.click();
+    });
+  }
+  if (waxSealBtn) {
+    waxSealBtn.addEventListener("click", unsealEnvelope);
+  }
+  if (mbtiFront) {
+    mbtiFront.addEventListener("click", function () { flipMbtiCard(true); });
+    mbtiFront.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        flipMbtiCard(true);
+      }
+    });
+  }
+  if (mbtiFlipBackBtn) {
+    mbtiFlipBackBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      flipMbtiCard(false);
+    });
+  }
+
+  // ---------- 实时烛光随鼠标/指尖摇曳微交互（rAF 节流） ----------
+  let candleRaf = null;
+  let pointerX = 0;
+  let pointerY = 0;
+  function updateCandleLight() {
+    candleRaf = null;
+    const rect = appEl.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const xPct = Math.max(0, Math.min(100, ((pointerX - rect.left) / rect.width) * 100));
+    const yPct = Math.max(0, Math.min(100, ((pointerY - rect.top) / rect.height) * 100));
+    appEl.style.setProperty("--spot-x", xPct.toFixed(1) + "%");
+    appEl.style.setProperty("--spot-y", yPct.toFixed(1) + "%");
+    appEl.style.setProperty("--spot-opacity", "1");
+    const sway = ((xPct - 50) / 50) * 7;
+    document.body.style.setProperty("--candle-sway-x", sway.toFixed(1) + "px");
+  }
+  function onPointerTrack(e) {
+    pointerX = e.clientX;
+    pointerY = e.clientY;
+    if (!candleRaf) {
+      candleRaf = requestAnimationFrame(updateCandleLight);
+    }
+  }
+  appEl.addEventListener("pointermove", onPointerTrack, { passive: true });
+  appEl.addEventListener("pointerdown", onPointerTrack, { passive: true });
+  appEl.addEventListener("pointerleave", function () {
+    appEl.style.setProperty("--spot-opacity", "0");
+    document.body.style.setProperty("--candle-sway-x", "0px");
+  });
 
   settingsBtn.addEventListener("click", toggleSettings);
   settingsClose.addEventListener("click", closePanels);
@@ -1166,6 +1608,9 @@
       settings.speed = b.dataset.speed;
       saveSettings();
       applySettingsUI();
+      if (settings.speed === "instant" && gameScreen.classList.contains("seal-locked")) {
+        unsealEnvelope();
+      }
       AudioEngine.playSfx("click");
     });
   });
@@ -1190,8 +1635,10 @@
   if (saveSlotsEl) {
     saveSlotsEl.querySelectorAll(".slot-item").forEach(function (row) {
       const idx = parseInt(row.dataset.slot, 10);
-      row.querySelector(".slot-save").addEventListener("click", function () { saveToSlot(idx); });
-      row.querySelector(".slot-load").addEventListener("click", function () { loadFromSlot(idx); });
+      const sBtn = row.querySelector(".slot-save");
+      const lBtn = row.querySelector(".slot-load");
+      sBtn.addEventListener("click", function () { saveToSlot(idx, sBtn); });
+      lBtn.addEventListener("click", function () { loadFromSlot(idx, lBtn); });
     });
   }
   sfxToggle.addEventListener("click", function () {
@@ -1219,7 +1666,20 @@
   });
   autoToggle.addEventListener("click", toggleAuto);
   if (exportBtn) exportBtn.addEventListener("click", exportBackup);
-  if (importBtn) importBtn.addEventListener("click", importBackup);
+  if (importBtn) importBtn.addEventListener("click", toggleImportBox);
+  if (importConfirmBtn) {
+    importConfirmBtn.addEventListener("click", function () {
+      applyBackupCode(importInput ? importInput.value : "");
+    });
+  }
+  if (importInput) {
+    importInput.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        applyBackupCode(importInput.value);
+      }
+    });
+  }
 
   undoBtn.addEventListener("click", doUndo);
   resetGalleryBtn.addEventListener("click", function () {

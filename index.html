@@ -27,6 +27,8 @@
   <div class="candle candle-r"></div>
 
   <main id="app" class="app">
+    <!-- 实时跟随指针/指尖的烛光微交互层 -->
+    <div id="candle-cursor" class="candle-cursor" aria-hidden="true"></div>
     <!-- 卡片顶栏：印章式工具按钮（游戏中显示） -->
     <div id="toolbar" class="toolbar hidden">
       <span id="toolbar-guide" class="toolbar-guide hidden" role="status">印章：录＝历史 · 自＝自动 · 设＝设置</span>
@@ -56,6 +58,7 @@
           <div id="gallery-title" class="gallery"></div>
           <p class="cards-label">名片夹 · 已集 0/16 型</p>
           <div id="cards-title" class="cards"></div>
+          <div id="collection-detail-title" class="collection-detail hidden" role="status" aria-live="polite"></div>
           <button id="reset-gallery-btn" class="link-btn hidden" type="button">重置图鉴</button>
         </div>
       </details>
@@ -63,6 +66,17 @@
 
     <!-- 游戏屏 -->
     <section id="game-screen" class="game-screen hidden">
+      <!-- 序章专属：火漆信封开场仪式 -->
+      <div id="wax-envelope" class="wax-envelope hidden">
+        <div class="envelope-body">
+          <div class="envelope-flap"></div>
+          <div class="envelope-letter-peek">1987 · XI · III</div>
+          <button id="wax-seal-btn" class="wax-seal-btn" type="button" aria-label="点击启封火漆印章展开请柬">
+            <span class="wax-seal-ring">V·1887</span>
+          </button>
+          <p id="wax-seal-caption" class="wax-seal-caption">点击火漆印 · 启封无名请柬</p>
+        </div>
+      </div>
       <p id="chapter" class="chapter"></p>
       <div id="story-text" class="story-text" aria-live="polite"></div>
       <div id="options" class="options"></div>
@@ -80,14 +94,27 @@
     <section id="result-screen" class="result-screen hidden">
       <h2 id="ending-title" class="ending-title"></h2>
       <div id="ending-text" class="ending-text"></div>
-      <!-- 人格画像：维多利亚式拜访名片 -->
+      <button id="ending-skip-hint" class="ending-skip-hint hidden" type="button">点击此处或按空格键，立即揭晓人格名片 ▾</button>
+      <!-- 人格画像：维多利亚式拜访名片（支持正反面 3D 翻转） -->
       <div id="mbti-box" class="mbti-box">
-        <div class="mbti-divider"><span>名片背面，写着——</span></div>
-        <h2 id="mbti-code" class="mbti-code"></h2>
-        <p id="mbti-name" class="mbti-name"></p>
-        <p id="mbti-role" class="mbti-role"></p>
-        <p id="mbti-desc" class="mbti-desc"></p>
-        <div id="mbti-bars" class="mbti-bars"></div>
+        <div id="mbti-flipper" class="mbti-flipper">
+          <div id="mbti-front" class="mbti-face mbti-front" role="button" tabindex="0" aria-label="点击翻转拜访名片查看背面人格画像">
+            <div class="mbti-front-seal"><span>V·1887</span></div>
+            <p class="mbti-front-kicker">MIST MANOR · VISITING CARD</p>
+            <h3 id="mbti-front-title" class="mbti-front-title">迷雾庄园拜访名片</h3>
+            <p class="mbti-front-sub">「侍者递来一张烫金名片。正面印着庄园的家徽，真正属于你的画像，落笔在背面。」</p>
+            <span class="mbti-flip-cta">点击翻转名片背面 ↻</span>
+          </div>
+          <div id="mbti-back" class="mbti-face mbti-back">
+            <div class="mbti-divider"><span>名片背面，写着——</span></div>
+            <h2 id="mbti-code" class="mbti-code"></h2>
+            <p id="mbti-name" class="mbti-name"></p>
+            <p id="mbti-role" class="mbti-role"></p>
+            <p id="mbti-desc" class="mbti-desc"></p>
+            <div id="mbti-bars" class="mbti-bars"></div>
+            <button id="mbti-flip-back-btn" class="link-btn mbti-flip-back-btn" type="button">翻回名片正面 ↺</button>
+          </div>
+        </div>
       </div>
       <p id="result-hint" class="result-hint">四条剧情线 · 一个隐藏结局 · 你的选择决定你经历怎样的夜晚</p>
       <details class="collection">
@@ -97,6 +124,7 @@
           <div id="gallery-result" class="gallery"></div>
           <p class="cards-label">名片夹 · 已集 0/16 型</p>
           <div id="cards-result" class="cards"></div>
+          <div id="collection-detail-result" class="collection-detail hidden" role="status" aria-live="polite"></div>
         </div>
       </details>
       <div class="result-actions">
@@ -190,6 +218,11 @@
             <button id="export-btn" class="link-btn" type="button">导出备份码</button>
             <button id="import-btn" class="link-btn" type="button">导入恢复</button>
           </div>
+        </div>
+        <div id="import-box" class="import-box hidden">
+          <input id="import-input" class="import-input" type="text" placeholder="粘贴之前导出的进度备份码…" aria-label="进度备份码输入框" />
+          <button id="import-confirm-btn" class="link-btn" type="button">确认恢复</button>
+          <span id="import-status" class="import-status" role="status" aria-live="polite"></span>
         </div>
         <p class="panel-tip">卡片右上角印章：录＝历史 · 自＝自动播放 · 设＝设置<br>快捷键：数字 1-4 选择 · 空格继续 · A 自动 · H 历史 · Esc 设置/暂停 · Z 撤销</p>
       </div>
