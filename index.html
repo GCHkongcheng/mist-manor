@@ -16,7 +16,7 @@
   <meta name="twitter:card" content="summary_large_image" />
   <!-- 烛光 favicon（data-URI 内联 SVG，维持零资源文件） -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230d0b14'/%3E%3Crect x='15' y='12' width='2' height='14' fill='%23c9a96a'/%3E%3Cellipse cx='16' cy='9' rx='3.2' ry='5' fill='%23e8d9a0'/%3E%3Cellipse cx='16' cy='9' rx='1.6' ry='3' fill='%23fff6d8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=3" />
 </head>
 <body data-lighting="foyer">
   <!-- 雾气背景层 -->
@@ -29,19 +29,80 @@
   <main id="app" class="app">
     <!-- 实时跟随指针/指尖的烛光微交互层 -->
     <div id="candle-cursor" class="candle-cursor" aria-hidden="true"></div>
-    <!-- 卡片顶栏：印章式工具按钮（游戏中显示） -->
+    <!-- 推开大门 3D 雕花铁门洞开与门缝暖光倾泻转场层 -->
+    <div id="gate-transition" class="gate-transition" aria-hidden="true">
+      <div class="gate-light-seam"></div>
+      <div class="gate-fog gate-fog-l"></div>
+      <div class="gate-fog gate-fog-r"></div>
+      <div class="gate-leaf gate-leaf-l">
+        <span class="gate-bars"></span>
+        <span class="gate-knocker"></span>
+      </div>
+      <div class="gate-leaf gate-leaf-r">
+        <span class="gate-bars"></span>
+        <span class="gate-knocker"></span>
+      </div>
+    </div>
+    <!-- 卡片顶栏：线性图标工具按钮（游戏中显示） -->
     <div id="toolbar" class="toolbar hidden">
-      <span id="toolbar-guide" class="toolbar-guide hidden" role="status">印章：录＝历史 · 自＝自动 · 设＝设置</span>
-      <button id="history-btn" class="tool-btn" type="button" title="历史记录（录 · H）" aria-label="历史记录">录</button>
-      <button id="auto-btn" class="tool-btn" type="button" title="自动播放（自 · A）" aria-label="自动播放" aria-pressed="false">自</button>
-      <button id="settings-btn" class="tool-btn" type="button" title="设置（设 · Esc）" aria-label="设置">设</button>
+      <span id="toolbar-guide" class="toolbar-guide hidden" role="status">右上角：书卷＝历史 · 播放＝自动 · 齿轮＝设置</span>
+      <button id="history-btn" class="tool-btn" type="button" title="历史记录（H）" aria-label="历史记录">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M2 4.5h6.5a3.5 3.5 0 0 1 3.5 3.5v12a2.5 2.5 0 0 0-2.5-2.5H2z"></path>
+          <path d="M22 4.5h-6.5A3.5 3.5 0 0 0 12 8v12a2.5 2.5 0 0 1 2.5-2.5H22z"></path>
+        </svg>
+      </button>
+      <button id="auto-btn" class="tool-btn" type="button" title="自动播放（A）" aria-label="自动播放" aria-pressed="false">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="9"></circle>
+          <polygon points="10,8.5 16,12 10,15.5" fill="currentColor" stroke="none"></polygon>
+        </svg>
+      </button>
+      <button id="settings-btn" class="tool-btn" type="button" title="设置（Esc）" aria-label="设置">
+        <svg class="tool-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.2"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
     </div>
 
     <!-- 标题屏 -->
     <header id="title-screen" class="title-screen">
+      <!-- 庄园哥特铁艺拱门与摇曳风灯徽章（纯内联 SVG + 悬浮微尘） -->
+      <div class="manor-crest" aria-hidden="true">
+        <span class="crest-mote m1"></span>
+        <span class="crest-mote m2"></span>
+        <span class="crest-mote m3"></span>
+        <span class="crest-mote m4"></span>
+        <svg class="crest-svg" viewBox="0 0 180 96" fill="none">
+          <!-- 外拱门与尖顶栏杆 -->
+          <path d="M18 90 V48 C18 22 50 8 90 8 C130 8 162 22 162 48 V90" stroke="currentColor" stroke-width="1.4" stroke-opacity="0.7" />
+          <path d="M26 90 V50 C26 28 54 15 90 15 C126 15 154 28 154 50 V90" stroke="currentColor" stroke-width="0.9" stroke-opacity="0.4" />
+          <!-- 两侧铁艺竖栏与矛尖 -->
+          <line x1="42" y1="30" x2="42" y2="90" stroke="currentColor" stroke-width="1" stroke-opacity="0.38" />
+          <line x1="60" y1="21" x2="60" y2="90" stroke="currentColor" stroke-width="1" stroke-opacity="0.38" />
+          <line x1="120" y1="21" x2="120" y2="90" stroke="currentColor" stroke-width="1" stroke-opacity="0.38" />
+          <line x1="138" y1="30" x2="138" y2="90" stroke="currentColor" stroke-width="1" stroke-opacity="0.38" />
+          <line x1="8" y1="90" x2="172" y2="90" stroke="currentColor" stroke-width="1.2" stroke-opacity="0.55" />
+          <!-- 拱心摇曳风灯 -->
+          <g class="crest-lantern">
+            <line x1="90" y1="15" x2="90" y2="34" stroke="currentColor" stroke-width="1.2" />
+            <polygon points="83,34 97,34 94,52 86,52" stroke="currentColor" stroke-width="1.2" fill="rgba(201,169,106,0.12)" />
+            <circle class="crest-flame" cx="90" cy="43" r="3.2" fill="currentColor" />
+            <circle class="crest-glow" cx="90" cy="43" r="11" fill="currentColor" fill-opacity="0.18" />
+          </g>
+        </svg>
+      </div>
       <p class="kicker">一场沉浸式文字游戏</p>
       <h1 class="title">迷雾庄园</h1>
       <p class="subtitle">今夜的晚宴，将写下你的画像</p>
+      <!-- 友人引荐席卡（当通过 #invite= 种子链接进入或手动绑定友人时展示） -->
+      <div id="inviter-banner" class="inviter-banner hidden" role="region" aria-label="友人同席请柬">
+        <p class="inviter-kicker">RESERVED SEAT · 友人留座请柬</p>
+        <p id="inviter-banner-title" class="inviter-banner-title"></p>
+        <p id="inviter-banner-sub" class="inviter-banner-sub"></p>
+        <button id="inviter-clear-btn" class="link-btn inviter-clear-btn" type="button">收起请柬 · 切换为独自赴宴</button>
+      </div>
       <div class="title-actions">
         <button id="continue-btn" class="btn-ghost hidden" type="button">继续上次的晚宴</button>
         <button id="start-btn" class="btn-primary" type="button">推开大门</button>
@@ -58,6 +119,9 @@
           <div id="gallery-title" class="gallery"></div>
           <p class="cards-label">名片夹 · 已集 0/16 型</p>
           <div id="cards-title" class="cards"></div>
+          <p class="relics-label">古董陈列架 · 已集 0/8 件</p>
+          <div id="relics-title" class="relics"></div>
+          <div id="relic-resonance-title" class="relic-resonance"></div>
           <div id="collection-detail-title" class="collection-detail hidden" role="status" aria-live="polite"></div>
           <button id="reset-gallery-btn" class="link-btn hidden" type="button">重置图鉴</button>
         </div>
@@ -66,19 +130,96 @@
 
     <!-- 游戏屏 -->
     <section id="game-screen" class="game-screen hidden">
-      <!-- 序章专属：火漆信封开场仪式 -->
+      <!-- 序章专属：火漆信封开场仪式（含崩裂双瓣、飞溅朱红碎屑与抽展羊皮纸请柬） -->
       <div id="wax-envelope" class="wax-envelope hidden">
         <div class="envelope-body">
           <div class="envelope-flap"></div>
-          <div class="envelope-letter-peek">1987 · XI · III</div>
-          <button id="wax-seal-btn" class="wax-seal-btn" type="button" aria-label="点击启封火漆印章展开请柬">
-            <span class="wax-seal-ring">V·1887</span>
-          </button>
+          <div class="envelope-pocket-lines" aria-hidden="true"></div>
+          <div class="envelope-letter-card">
+            <span class="letter-ornament" aria-hidden="true">✦ MIST MANOR ✦</span>
+            <div id="envelope-letter-peek" class="envelope-letter-peek">1987 · XI · III</div>
+          </div>
+          <div class="wax-stage">
+            <button id="wax-seal-btn" class="wax-seal-btn" type="button" aria-label="点击启封火漆印章展开请柬">
+              <span class="wax-seal-ring">V·1887</span>
+            </button>
+            <!-- 启封瞬间的崩裂双瓣与飞溅碎屑特效层 -->
+            <div class="wax-burst-fx" aria-hidden="true">
+              <span class="seal-half seal-half-l"><span>V·</span></span>
+              <span class="seal-half seal-half-r"><span>87</span></span>
+              <svg class="seal-crack-svg" viewBox="0 0 68 68">
+                <polyline points="34,4 29,22 38,34 27,47 35,64" fill="none" stroke="#fff3c4" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span class="wax-shard s1"></span>
+              <span class="wax-shard s2"></span>
+              <span class="wax-shard s3"></span>
+              <span class="wax-shard s4"></span>
+              <span class="wax-shard s5"></span>
+              <span class="wax-shard s6"></span>
+              <span class="wax-shard s7"></span>
+              <span class="wax-shard s8"></span>
+            </div>
+          </div>
           <p id="wax-seal-caption" class="wax-seal-caption">点击火漆印 · 启封无名请柬</p>
         </div>
       </div>
       <p id="chapter" class="chapter"></p>
       <div id="story-text" class="story-text" aria-live="polite"></div>
+      <!-- 烛光显影术交互台：炙烤密文（ch2/ch4/A0）与吹熄蜡烛（B1 镜厅） -->
+      <div id="candle-secret-stage" class="candle-secret-stage hidden" role="region" aria-label="烛光探索互动">
+        <!-- 模式一：烛火炙烤显影（柠檬汁密信 / 画布暗层） -->
+        <div id="roast-box" class="roast-box hidden">
+          <div id="roast-zone" class="roast-zone" role="button" tabindex="0" aria-label="移近烛火炙烤羊皮纸暗层">
+            <span class="roast-ember-glow" aria-hidden="true"></span>
+            <div class="roast-ring-wrap" aria-hidden="true">
+              <svg class="roast-ring-svg" viewBox="0 0 44 44">
+                <circle class="roast-ring-bg" cx="22" cy="22" r="18"></circle>
+                <circle id="roast-ring-bar" class="roast-ring-bar" cx="22" cy="22" r="18"></circle>
+              </svg>
+              <span class="roast-flame-icon">🕯️</span>
+            </div>
+            <div class="roast-zone-body">
+              <p id="roast-hint" class="roast-hint"></p>
+              <p id="roast-ghost-cipher" class="roast-ghost-cipher" aria-hidden="true"></p>
+            </div>
+          </div>
+          <div id="roast-reveal" class="roast-reveal hidden" role="status" aria-live="polite">
+            <div class="roast-reveal-head">
+              <span class="roast-reveal-badge">✦ 烛火显影 · 考据线索已镌刻</span>
+              <strong id="roast-title" class="roast-title"></strong>
+            </div>
+            <p id="roast-cipher" class="roast-cipher"></p>
+            <p id="roast-text" class="roast-text"></p>
+          </div>
+        </div>
+        <!-- 模式二：吹熄蜡烛 · 屏息凝神（B1 镜厅专属） -->
+        <div id="blow-box" class="blow-box hidden">
+          <p id="blow-hint" class="blow-hint"></p>
+          <div id="blow-actions" class="blow-actions">
+            <button id="blow-candle-btn" class="blow-candle-btn" type="button">
+              <svg class="blow-flame-svg" viewBox="0 0 28 36" aria-hidden="true">
+                <path class="blow-smoke-path" d="M14 18 C10 12, 18 7, 13 2" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"></path>
+                <rect x="11" y="21" width="6" height="12" rx="1" fill="#d9c398"></rect>
+                <line x1="14" y1="18" x2="14" y2="21" stroke="#3a2a18" stroke-width="1.2"></line>
+                <path class="blow-flame-outer" d="M14 5 C10 11, 9 16, 14 18 C19 16, 18 11, 14 5 Z" fill="#f2cf7e"></path>
+                <ellipse class="blow-flame-core" cx="14" cy="14" rx="2" ry="3.2" fill="#fff9e2"></ellipse>
+              </svg>
+              <span id="blow-candle-label">吹熄手中烛火 · 屏息凝望镜渊</span>
+            </button>
+            <button id="mic-blow-btn" class="mic-blow-btn" type="button" title="开启麦克风，对着屏幕轻吹一口气熄灭蜡烛">
+              <span id="mic-blow-label">🎙️ 轻吹麦克风熄烛</span>
+            </button>
+          </div>
+          <div id="blow-reveal" class="blow-reveal hidden" role="status" aria-live="polite">
+            <div class="blow-reveal-head">
+              <span class="blow-reveal-badge">✦ 镜渊幽影 · 无光之境已唤醒</span>
+              <strong id="blow-title" class="blow-title"></strong>
+            </div>
+            <p id="blow-cipher" class="blow-cipher"></p>
+            <p id="blow-text" class="blow-text"></p>
+          </div>
+        </div>
+      </div>
       <div id="options" class="options"></div>
       <div class="progress-wrap">
         <div id="progress" class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0" aria-label="晚宴选择进度"></div>
@@ -95,10 +236,15 @@
       <h2 id="ending-title" class="ending-title"></h2>
       <div id="ending-text" class="ending-text"></div>
       <button id="ending-skip-hint" class="ending-skip-hint hidden" type="button">点击此处或按空格键，立即揭晓人格名片 ▾</button>
-      <!-- 人格画像：维多利亚式拜访名片（支持正反面 3D 翻转） -->
+      <!-- 人格画像：维多利亚式拜访名片（支持正反面 3D 翻转 + 视差倾斜 + 烫金流光） -->
       <div id="mbti-box" class="mbti-box">
         <div id="mbti-flipper" class="mbti-flipper">
           <div id="mbti-front" class="mbti-face mbti-front" role="button" tabindex="0" aria-label="点击翻转拜访名片查看背面人格画像">
+            <span class="card-foil-glint" aria-hidden="true"></span>
+            <span class="card-corner tl" aria-hidden="true"></span>
+            <span class="card-corner tr" aria-hidden="true"></span>
+            <span class="card-corner bl" aria-hidden="true"></span>
+            <span class="card-corner br" aria-hidden="true"></span>
             <div class="mbti-front-seal"><span>V·1887</span></div>
             <p class="mbti-front-kicker">MIST MANOR · VISITING CARD</p>
             <h3 id="mbti-front-title" class="mbti-front-title">迷雾庄园拜访名片</h3>
@@ -106,13 +252,86 @@
             <span class="mbti-flip-cta">点击翻转名片背面 ↻</span>
           </div>
           <div id="mbti-back" class="mbti-face mbti-back">
+            <span class="card-foil-glint" aria-hidden="true"></span>
+            <span class="card-corner tl" aria-hidden="true"></span>
+            <span class="card-corner tr" aria-hidden="true"></span>
+            <span class="card-corner bl" aria-hidden="true"></span>
+            <span class="card-corner br" aria-hidden="true"></span>
             <div class="mbti-divider"><span>名片背面，写着——</span></div>
             <h2 id="mbti-code" class="mbti-code"></h2>
             <p id="mbti-name" class="mbti-name"></p>
             <p id="mbti-role" class="mbti-role"></p>
             <p id="mbti-desc" class="mbti-desc"></p>
             <div id="mbti-bars" class="mbti-bars"></div>
+            <div id="mbti-footprints" class="mbti-footprints"></div>
+            <!-- 潜意识行为侧写：维恩先生的手写暗批（表里双生人格） -->
+            <div id="mbti-shadow" class="mbti-shadow">
+              <div class="mbti-shadow-head">
+                <span class="mbti-shadow-kicker">✒ 维恩先生的席间暗批</span>
+                <span id="mbti-shadow-tag" class="mbti-shadow-tag"></span>
+              </div>
+              <p id="mbti-shadow-note" class="mbti-shadow-note"></p>
+            </div>
             <button id="mbti-flip-back-btn" class="link-btn mbti-flip-back-btn" type="button">翻回名片正面 ↺</button>
+          </div>
+        </div>
+      </div>
+      <!-- 双人同席羁绊合盘（链接自动触发或手动选择友人合盘） -->
+      <div id="bond-section" class="bond-section">
+        <div id="bond-box" class="bond-box hidden" role="region" aria-label="双人同席羁绊合盘">
+          <p class="bond-kicker">TWIN SEATS AT THE BANQUET · 双人同席合盘</p>
+          <div class="bond-pair">
+            <div class="bond-guest">
+              <span class="bond-guest-tag">引荐友人</span>
+              <strong id="bond-inviter-code" class="bond-guest-code">INTJ</strong>
+              <span id="bond-inviter-meta" class="bond-guest-meta">建筑师 · 真相之夜</span>
+            </div>
+            <div class="bond-knot" aria-hidden="true"><span>✦</span></div>
+            <div class="bond-guest">
+              <span class="bond-guest-tag">今夜的你</span>
+              <strong id="bond-player-code" class="bond-guest-code">ENFP</strong>
+              <span id="bond-player-meta" class="bond-guest-meta">竞选者 · 门后</span>
+            </div>
+          </div>
+          <div class="bond-header">
+            <h3 id="bond-title" class="bond-title">烛火与夜风</h3>
+            <span id="bond-resonance" class="bond-resonance">极性互补 · 96%</span>
+          </div>
+          <p id="bond-desc" class="bond-desc"></p>
+          <p id="bond-route" class="bond-route"></p>
+        </div>
+        <div class="bond-picker-bar">
+          <button id="bond-toggle-btn" class="link-btn" type="button" aria-expanded="false">与友人同席合盘 ▾</button>
+          <button id="bond-clear-btn" class="link-btn hidden" type="button">解除同席</button>
+        </div>
+        <div id="bond-picker" class="bond-picker hidden">
+          <p class="bond-picker-tip">选择友人的十六型人格与结局线（或直接粘贴友人分享的请柬暗码），即刻揭晓你们的庄园合盘并生成双人海报：</p>
+          <div class="bond-picker-row">
+            <select id="bond-select-mbti" class="bond-select" aria-label="选择友人人格类型">
+              <option value="INTJ">INTJ · 建筑师</option>
+              <option value="INTP">INTP · 逻辑学家</option>
+              <option value="ENTJ">ENTJ · 指挥官</option>
+              <option value="ENTP">ENTP · 辩论家</option>
+              <option value="INFJ">INFJ · 提倡者</option>
+              <option value="INFP">INFP · 调停者</option>
+              <option value="ENFJ">ENFJ · 主人公</option>
+              <option value="ENFP">ENFP · 竞选者</option>
+              <option value="ISTJ">ISTJ · 物流师</option>
+              <option value="ISFJ">ISFJ · 守卫者</option>
+              <option value="ESTJ">ESTJ · 总经理</option>
+              <option value="ESFJ">ESFJ · 执政官</option>
+              <option value="ISTP">ISTP · 鉴赏家</option>
+              <option value="ISFP">ISFP · 探险家</option>
+              <option value="ESTP">ESTP · 企业家</option>
+              <option value="ESFP">ESFP · 表演者</option>
+            </select>
+            <select id="bond-select-ending" class="bond-select" aria-label="选择友人结局线">
+              <option value="A">结局一 · 真相之夜（书房）</option>
+              <option value="B">结局二 · 门后（蓝门）</option>
+              <option value="C">结局三 · 过客（客房）</option>
+              <option value="D">结局四 · 归还（后园）</option>
+            </select>
+            <button id="bond-apply-btn" class="btn-ghost bond-apply-btn" type="button">结成合盘</button>
           </div>
         </div>
       </div>
@@ -124,6 +343,9 @@
           <div id="gallery-result" class="gallery"></div>
           <p class="cards-label">名片夹 · 已集 0/16 型</p>
           <div id="cards-result" class="cards"></div>
+          <p class="relics-label">古董陈列架 · 已集 0/8 件</p>
+          <div id="relics-result" class="relics"></div>
+          <div id="relic-resonance-result" class="relic-resonance"></div>
           <div id="collection-detail-result" class="collection-detail hidden" role="status" aria-live="polite"></div>
         </div>
       </details>
@@ -224,7 +446,7 @@
           <button id="import-confirm-btn" class="link-btn" type="button">确认恢复</button>
           <span id="import-status" class="import-status" role="status" aria-live="polite"></span>
         </div>
-        <p class="panel-tip">卡片右上角印章：录＝历史 · 自＝自动播放 · 设＝设置<br>快捷键：数字 1-4 选择 · 空格继续 · A 自动 · H 历史 · Esc 设置/暂停 · Z 撤销</p>
+        <p class="panel-tip">卡片右上角图标：书卷＝历史 · 播放＝自动播放 · 齿轮＝设置<br>快捷键：数字 1-4 选择 · 空格继续 · A 自动 · H 历史 · Esc 设置/暂停 · Z 撤销</p>
       </div>
       <div class="panel-actions">
         <button id="settings-close" class="btn-primary" type="button">继续游戏</button>
@@ -250,10 +472,10 @@
     <span>迷雾庄园 · 用华为云码道 CodeArts 创作 · 仅供娱乐</span>
   </footer>
 
-  <script src="data.js?v=2"></script>
-  <script src="engine.js?v=2"></script>
-  <script src="audio.js?v=2"></script>
-  <script src="card.js?v=2"></script>
-  <script src="game.js?v=2"></script>
+  <script src="data.js?v=3"></script>
+  <script src="engine.js?v=3"></script>
+  <script src="audio.js?v=3"></script>
+  <script src="card.js?v=3"></script>
+  <script src="game.js?v=3"></script>
 </body>
 </html>

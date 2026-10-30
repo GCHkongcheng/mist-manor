@@ -30,6 +30,7 @@ const driverScript = `
   localStorage.setItem("mist_manor_settings", JSON.stringify({
     speed: "instant", font: "large", sfx: false, rain: false, volume: 0.8, auto: false, skipRead: false
   }));
+  window.location.hash = "#invite=INTJ-A-13a";
 </script>
 `;
 
@@ -47,7 +48,13 @@ const testScript = `
     document.body.appendChild(pre);
   }
 
-  // 1. 标题屏检查
+  // 1. 标题屏检查（含 #invite= 友人留座请柬识别）
+  var invBanner = document.getElementById("inviter-banner");
+  assert("URL 携带 #invite= 种子时标题屏展示友人留座席卡",
+    invBanner && !invBanner.classList.contains("hidden") &&
+    document.getElementById("inviter-banner-title").textContent.indexOf("INTJ · 建筑师") >= 0);
+  assert("存在友人请柬时开局主按钮文案变为「持友人的请柬入席」",
+    document.getElementById("start-btn").textContent.indexOf("持友人的请柬入席") >= 0);
   var rainPill = document.getElementById("title-rain-btn");
   assert("标题屏雨声胶囊按钮存在", !!rainPill);
   rainPill.click();
@@ -56,15 +63,24 @@ const testScript = `
   rainPill.click();
   assert("字号缩放预设生效", document.body.dataset.font === "large");
 
-  // 2. 开局首局（第 1 套题库 + 火漆信封开场仪式 + 烛光实时摇曳交互）
+  // 2. 开局首局（第 1 套题库 + 庄园拱门徽章 + 3D 推门转场 + 火漆崩裂启封仪式 + 烛光实时摇曳交互 + 顶栏内联 SVG 线性图标）
+  assert("标题屏展示庄园哥特铁艺拱门与摇曳风灯徽章", !!document.querySelector("#title-screen .manor-crest svg.crest-svg"));
   document.getElementById("start-btn").click();
-  assert("首次进入显示印章微引导", !document.getElementById("toolbar-guide").classList.contains("hidden"));
+  var gateEl = document.getElementById("gate-transition");
+  assert("点击推开大门触发 3D 雕花铁门洞开与门缝暖光转场动画",
+    gateEl && gateEl.classList.contains("gate-opening"));
+  assert("首次进入显示工具栏微引导", !document.getElementById("toolbar-guide").classList.contains("hidden"));
+  assert("顶栏历史/自动/设置三枚按钮均采用内联 SVG 线性图标",
+    document.querySelectorAll("#toolbar .tool-btn svg.tool-icon").length === 3);
   assert("开局光照为门厅 foyer", document.body.dataset.lighting === "foyer");
   var waxEnv = document.getElementById("wax-envelope");
   var waxBtn = document.getElementById("wax-seal-btn");
-  assert("序章展示火漆信封开场仪式", !waxEnv.classList.contains("hidden") && !waxEnv.classList.contains("unsealed"));
+  assert("序章展示火漆信封开场仪式（含崩裂双瓣与飞溅碎屑层）",
+    !waxEnv.classList.contains("hidden") && !waxEnv.classList.contains("unsealed") &&
+    document.querySelectorAll("#wax-envelope .wax-shard").length === 8);
   waxBtn.click();
-  assert("点击火漆印后信封启封展开", waxEnv.classList.contains("unsealed"));
+  assert("点击火漆印后信封启封展开并抽出羊皮纸请柬",
+    waxEnv.classList.contains("unsealed") && !!document.querySelector("#wax-envelope .envelope-letter-card"));
 
   // 触发指针移动验证实时烛光摇曳交互
   var appEl = document.getElementById("app");
@@ -138,10 +154,29 @@ const testScript = `
       if (emEl && emEl.textContent === "被记住的地方" && document.getElementById("story-text").textContent.indexOf("**") < 0) {
         sawStoryEm = true;
       }
+      if (document.getElementById("story-text").textContent.indexOf("〔前客余温〕") >= 0) {
+        window._sawInviterEcho = true;
+      }
       if (!document.getElementById("result-screen").classList.contains("hidden") || guard > 200) {
         clearInterval(stepTimer);
         assert("第一局顺利抵达结局屏", !document.getElementById("result-screen").classList.contains("hidden"));
         assert('**...** 解析为带金色微光样式的 <em class="story-em">', sawStoryEm);
+        assert("晚宴途中触发〔前客余温〕友人叙事回响", !!window._sawInviterEcho);
+        var bondBox = document.getElementById("bond-box");
+        assert("结局屏自动展示双人同席羁绊合盘卡片",
+          bondBox && !bondBox.classList.contains("hidden") &&
+          document.getElementById("bond-inviter-code").textContent === "INTJ" &&
+          document.getElementById("bond-title").textContent.length > 2);
+        // 验证结局屏手动切换同席友人合盘
+        document.getElementById("bond-toggle-btn").click();
+        var bondPicker = document.getElementById("bond-picker");
+        assert("点击更换同席友人展开合盘选择器", !bondPicker.classList.contains("hidden"));
+        document.getElementById("bond-select-mbti").value = "ENFP";
+        document.getElementById("bond-select-ending").value = "D";
+        document.getElementById("bond-apply-btn").click();
+        assert("手动选择友人类型与结局后即时更新合盘卡片",
+          bondPicker.classList.contains("hidden") &&
+          document.getElementById("bond-inviter-code").textContent === "ENFP");
         var skipHint = document.getElementById("ending-skip-hint");
         assert("结局打字期间底部显示明显跳过轻提示", !skipHint.classList.contains("hidden"));
         skipHint.click();
@@ -151,20 +186,47 @@ const testScript = `
         assert("名片初始展示正面家徽等待翻转", !mbtiBox.classList.contains("is-flipped"));
         document.getElementById("mbti-front").click();
         assert("点击拜访名片正面可 3D 翻转至背面人格画像", mbtiBox.classList.contains("is-flipped"));
+        mbtiBox.dispatchEvent(new PointerEvent("pointermove", { clientX: 280, clientY: 320, bubbles: true }));
+        assert("拜访名片支持鼠标跟随 3D 视差悬浮与烫金流光层",
+          mbtiBox.classList.contains("is-tilting") &&
+          document.querySelectorAll("#mbti-box .card-foil-glint").length === 2);
         var barText = document.getElementById("mbti-bars").textContent;
-        assert("结局维度条显示百分比", barText.indexOf("%") >= 0);
+        var fpText = document.getElementById("mbti-footprints").textContent;
+        assert("结局维度条显示百分比且名片背面展示本局轨迹印章（含烛光考据印记）",
+          barText.indexOf("%") >= 0 &&
+          document.querySelectorAll("#mbti-footprints .footprint-pill").length === 3 &&
+          fpText.indexOf("炙烤画布显影当票") >= 0 &&
+          fpText.indexOf("吹熄烛火窥见镜渊") >= 0);
+        var shadowTag = document.getElementById("mbti-shadow-tag").textContent;
+        var shadowNote = document.getElementById("mbti-shadow-note").textContent;
+        assert("名片背面展示潜意识行为侧写（表里双生人格标签与维恩手写暗批）",
+          shadowTag.indexOf("表象 ") === 0 && shadowTag.indexOf("潜影 ") > 0 &&
+          shadowNote.indexOf("撤回了 1 次落子") >= 0);
 
-        // 验证结局图鉴与名片夹点击交互
+        // 验证结局图鉴、名片夹与命运证物陈列匣（含八音盒三件套共鸣短笺）
         var unlockedCardSlot = document.querySelector("#cards-result .card-slot.unlocked");
         var lockedEndingSlot = document.querySelector("#gallery-result .gallery-slot:not(.unlocked)");
+        var unlockedRelicSlot = document.querySelector("#relics-result .relic-slot.unlocked");
         var detailBox = document.getElementById("collection-detail-result");
         unlockedCardSlot.click();
         var cardPreviewOk = !detailBox.classList.contains("hidden") && detailBox.textContent.indexOf("已收录名片") >= 0;
         lockedEndingSlot.click();
         var cluePreviewOk = !detailBox.classList.contains("hidden") && detailBox.textContent.indexOf("解锁线索") >= 0;
-        assert("点击收藏图鉴与名片夹可查看已解锁名片详情与未解锁结局线索", cardPreviewOk && cluePreviewOk);
+        unlockedRelicSlot.click();
+        var relicPreviewOk = !detailBox.classList.contains("hidden") && detailBox.textContent.indexOf("已入陈列匣") >= 0;
+        assert("点击收藏图鉴、名片夹与古董陈列架可查看详情与线索（含 8 件描金 SVG 器物）",
+          cardPreviewOk && cluePreviewOk && relicPreviewOk &&
+          document.querySelectorAll("#relics-result .relic-slot svg.relic-svg").length === 8);
 
-        // 验证名片 Canvas 海报渲染（含专属轨迹与矢量二维码）
+        var resBtn = document.querySelector("#relic-resonance-result .resonance-btn");
+        var resCard = document.querySelector("#relic-resonance-result .resonance-letter-card");
+        resBtn.click();
+        assert("集齐三件套证物后点击古董共鸣可展开艾德琳未寄出的短笺并奏响八音盒",
+          resBtn.classList.contains("ready") &&
+          resCard && !resCard.classList.contains("hidden") &&
+          resCard.textContent.indexOf("致母亲") >= 0);
+
+        // 验证名片 Canvas 海报渲染（单人 1080x1560 与双人合盘 1080x1840）
         var cv = window.CardExporter.renderCardCanvas({
           mbti: MBTI_TYPES["INTJ"],
           endingTitle: "结局二 · 门后",
@@ -173,7 +235,19 @@ const testScript = `
           footprints: ["推门自报来意", "细辨1887画款", "推开纸星小门"],
           collectionSummary: "已解锁 1/4 结局 · 名片夹 1/16 型"
         });
-        assert("Canvas 名片海报正常绘制（含本局轨迹与二维码）", cv && cv.width === 1080 && cv.height === 1560);
+        var cvBond = window.CardExporter.renderCardCanvas({
+          mbti: MBTI_TYPES["INTJ"],
+          endingTitle: "结局二 · 门后",
+          scores: { E: 1, I: 2.5, S: 1, N: 2.5, T: 2.5, F: 1, J: 2.5, P: 1 },
+          dims: [{ left: "E", right: "I" }, { left: "S", right: "N" }, { left: "T", right: "F" }, { left: "J", right: "P" }],
+          footprints: ["推门自报来意", "细辨1887画款", "推开纸星小门"],
+          bond: window.Engine.computeBond("ENFP-D", "INTJ-B"),
+          inviteSeed: "INTJ-B-03c",
+          collectionSummary: "已解锁 1/4 结局 · 名片夹 1/16 型"
+        });
+        assert("Canvas 名片海报正常绘制（含单人 1080x1560 与双人合盘 1080x1840）",
+          cv && cv.width === 1080 && cv.height === 1560 &&
+          cvBond && cvBond.width === 1080 && cvBond.height === 1840);
 
         // 切回立即档，点击「再赴晚宴」开启二周目，验证平行题库启用
         document.querySelector('#speed-seg button[data-speed="instant"]').click();
@@ -195,8 +269,37 @@ const testScript = `
       var cards = document.querySelectorAll(".option-card:not(:disabled)");
       if (cards.length) {
         var chText = document.getElementById("chapter").textContent;
+        // 在第二章（ch2）验证「烛火炙烤显影」
+        var roastBox = document.getElementById("roast-box");
+        var roastZone = document.getElementById("roast-zone");
+        if (roastBox && !roastBox.classList.contains("hidden") && roastZone && !roastZone.classList.contains("hidden") && !window._testedRoast) {
+          window._testedRoast = true;
+          roastZone.click();
+          var roastReveal = document.getElementById("roast-reveal");
+          assert("ch2 烛火炙烤显影：点击/悬停炙烤区烘出画背当票密文",
+            roastReveal && !roastReveal.classList.contains("hidden") &&
+            document.getElementById("roast-cipher").textContent.indexOf("1887-XI-03") >= 0);
+        }
+        // 在镜厅（B1）验证「吹熄蜡烛 · 屏息凝神」
+        var blowBtn = document.getElementById("blow-candle-btn");
+        if (blowBtn && !document.getElementById("blow-box").classList.contains("hidden") && !window._testedBlow) {
+          window._testedBlow = true;
+          blowBtn.click();
+          assert("B1 镜厅点击吹熄蜡烛后全屏熄烛进入 candle-blown 状态",
+            document.body.classList.contains("candle-blown"));
+          return; // 等待 60ms 揭晓镜渊幽影后再选选项
+        }
+        if (window._testedBlow && !window._verifiedBlowReveal) {
+          var blowReveal = document.getElementById("blow-reveal");
+          if (blowReveal && !blowReveal.classList.contains("hidden")) {
+            window._verifiedBlowReveal = true;
+            assert("B1 镜厅黑暗过渡后唤醒 mirror-abyss-awakened 并浮现艾德琳镜底银字",
+              document.body.classList.contains("mirror-abyss-awakened") &&
+              document.getElementById("blow-cipher").textContent.indexOf("MIRROR REMEMBER") >= 0);
+          }
+        }
         if (chText.indexOf("第六章") >= 0 && cards[1]) {
-          cards[1].click(); // 进 B 线以经过 B2 节点
+          cards[1].click(); // 进 B 线以经过 B1、B2 节点
           return;
         }
         if (chText.indexOf("门后 · 黎明前") >= 0) {

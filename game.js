@@ -28,6 +28,12 @@
   const endingSkipHint = $("ending-skip-hint");
   const waxEnvelope = $("wax-envelope");
   const waxSealBtn = $("wax-seal-btn");
+  const envelopeLetterPeek = $("envelope-letter-peek");
+  const gateTransition = $("gate-transition");
+  const inviterBanner = $("inviter-banner");
+  const inviterBannerTitle = $("inviter-banner-title");
+  const inviterBannerSub = $("inviter-banner-sub");
+  const inviterClearBtn = $("inviter-clear-btn");
   const mbtiBox = $("mbti-box");
   const mbtiFront = $("mbti-front");
   const mbtiFrontTitle = $("mbti-front-title");
@@ -36,6 +42,41 @@
   const mbtiName = $("mbti-name");
   const mbtiRole = $("mbti-role");
   const mbtiDesc = $("mbti-desc");
+  const bondBox = $("bond-box");
+  const bondInviterCode = $("bond-inviter-code");
+  const bondInviterMeta = $("bond-inviter-meta");
+  const bondPlayerCode = $("bond-player-code");
+  const bondPlayerMeta = $("bond-player-meta");
+  const bondTitle = $("bond-title");
+  const bondResonance = $("bond-resonance");
+  const bondDesc = $("bond-desc");
+  const bondRoute = $("bond-route");
+  const bondToggleBtn = $("bond-toggle-btn");
+  const bondClearBtn = $("bond-clear-btn");
+  const bondPicker = $("bond-picker");
+  const bondSelectMbti = $("bond-select-mbti");
+  const bondSelectEnding = $("bond-select-ending");
+  const bondApplyBtn = $("bond-apply-btn");
+  const candleSecretStage = $("candle-secret-stage");
+  const roastBox = $("roast-box");
+  const roastZone = $("roast-zone");
+  const roastHint = $("roast-hint");
+  const roastGhostCipher = $("roast-ghost-cipher");
+  const roastReveal = $("roast-reveal");
+  const roastTitle = $("roast-title");
+  const roastCipher = $("roast-cipher");
+  const roastText = $("roast-text");
+  const blowBox = $("blow-box");
+  const blowHint = $("blow-hint");
+  const blowActions = $("blow-actions");
+  const blowCandleBtn = $("blow-candle-btn");
+  const blowCandleLabel = $("blow-candle-label");
+  const micBlowBtn = $("mic-blow-btn");
+  const micBlowLabel = $("mic-blow-label");
+  const blowReveal = $("blow-reveal");
+  const blowTitle = $("blow-title");
+  const blowCipher = $("blow-cipher");
+  const blowText = $("blow-text");
   const appEl = $("app");
 
   // 工具条 / 面板
@@ -84,6 +125,8 @@
   const K_READ     = "mist_manor_read";
   const K_GUIDE    = "mist_manor_guide_seen";
   const K_RUNS     = "mist_manor_runs";
+  const K_INVITER  = "mist_manor_inviter";
+  const K_RELICS   = "mist_manor_relics";
 
   // ---------- 设置 ----------
   const SPEEDS = {
@@ -174,6 +217,90 @@
   let log = [];              // 历史记录 {chapter, text, chosen}
   let undoStack = [];
   let pendingChoiceSnap = null; // 选后反馈停留期间的节点入口快照，防止中途存盘导致二次计分
+  let inviter = null;        // 同席邀请人信息 { code, name, endingKey, endingTitle, flags, footprints, seed }
+  function newTelemetry() {
+    return {
+      hoverSwitches: 0,
+      undoCount: 0,
+      skipCount: 0,
+      hesitateCount: 0,
+      quickCount: 0,
+      totalThinkMs: 0,
+      candleCount: 0
+    };
+  }
+  let telemetry = newTelemetry();
+  let optionsShownAt = 0;
+  let lastHoveredOptIdx = -1;
+
+  function loadInviter() {
+    let parsed = null;
+    try {
+      if (window.location.hash && window.location.hash.indexOf("invite=") >= 0) {
+        parsed = Engine.parseInviteSeed(window.location.hash);
+      } else if (window.location.search && window.location.search.indexOf("invite=") >= 0) {
+        parsed = Engine.parseInviteSeed(window.location.search);
+      }
+      if (parsed) {
+        inviter = parsed;
+        localStorage.setItem(K_INVITER, parsed.seed);
+        return;
+      }
+      const savedSeed = localStorage.getItem(K_INVITER);
+      if (savedSeed) {
+        inviter = Engine.parseInviteSeed(savedSeed);
+      }
+    } catch (e) {}
+  }
+
+  function setInviterBySeed(seedStr) {
+    const parsed = Engine.parseInviteSeed(seedStr);
+    if (!parsed) return false;
+    inviter = parsed;
+    try { localStorage.setItem(K_INVITER, parsed.seed); } catch (e) {}
+    renderInviterBanner();
+    renderBondSection();
+    return true;
+  }
+
+  function clearInviter() {
+    inviter = null;
+    try { localStorage.removeItem(K_INVITER); } catch (e) {}
+    try {
+      if (window.history && window.history.replaceState && window.location.hash.indexOf("invite=") >= 0) {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      }
+    } catch (e) {}
+    renderInviterBanner();
+    renderBondSection();
+  }
+
+  function renderInviterBanner() {
+    if (!inviterBanner) return;
+    if (inviter && inviter.code) {
+      inviterBanner.classList.remove("hidden");
+      if (inviterBannerTitle) {
+        inviterBannerTitle.textContent = "昨夜赴宴的友人【" + inviter.code + " · " + inviter.name + "】在离席前，托维恩先生为你留了一张席位卡。";
+      }
+      if (inviterBannerSub) {
+        if (inviter.footprints && inviter.footprints.length) {
+          inviterBannerSub.textContent = "友人达成了「" + inviter.endingTitle + "」，并在席间留下痕迹：" + inviter.footprints.join(" · ");
+        } else {
+          inviterBannerSub.textContent = "友人达成了「" + inviter.endingTitle + "」——赴宴至终章，将揭晓你们的双人同席合盘。";
+        }
+      }
+      startBtn.textContent = "持友人的请柬入席";
+      if (envelopeLetterPeek) {
+        envelopeLetterPeek.textContent = "1987 · XI · III · 友人 " + inviter.code + " 引荐";
+      }
+    } else {
+      inviterBanner.classList.add("hidden");
+      startBtn.textContent = "推开大门";
+      if (envelopeLetterPeek) {
+        envelopeLetterPeek.textContent = "1987 · XI · III";
+      }
+    }
+  }
 
   // 生成平行题库掩码：首局全用第 1 套；第 2 局全用第 2 套；第 3 局起每题随机抽一套
   function buildVariantMap() {
@@ -431,7 +558,7 @@
           const wrap = el.parentElement;
           const wasActive = slot.classList.contains("active");
           if (wrap) {
-            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active").forEach(function (b) {
+            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active, .relic-slot.active").forEach(function (b) {
               b.classList.remove("active");
             });
           }
@@ -516,7 +643,7 @@
           const wrap = el.parentElement;
           const wasActive = slot.classList.contains("active");
           if (wrap) {
-            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active").forEach(function (b) {
+            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active, .relic-slot.active").forEach(function (b) {
               b.classList.remove("active");
             });
           }
@@ -557,7 +684,174 @@
       }
     });
     const g = getGallery();
-    resetGalleryBtn.classList.toggle("hidden", Object.keys(g).length === 0 && got === 0);
+    const r = getRelics();
+    resetGalleryBtn.classList.toggle("hidden", Object.keys(g).length === 0 && got === 0 && Object.keys(r).length === 0);
+  }
+
+  // ---------- 命运证物陈列匣（8 件描金内联 SVG 古董器物 + 三件共鸣八音盒与未寄短笺） ----------
+  const RELIC_SVG_MAP = {
+    relic_photo: '<rect x="4" y="3" width="16" height="18" rx="1.5"></rect><circle cx="9.5" cy="10" r="2"></circle><circle cx="14.5" cy="10.5" r="1.8"></circle><path d="M6.5 17c.6-2.2 2-3.2 3.5-3.2s2.6.8 3.2 3.2"></path><path d="M12.5 17c.5-1.8 1.5-2.6 2.8-2.6 1.1 0 2 .7 2.4 2.6"></path>',
+    relic_frame: '<ellipse cx="12" cy="12" rx="7.5" ry="9.5"></ellipse><ellipse cx="12" cy="12" rx="5.2" ry="7"></ellipse><path d="M12 2.5v2M12 19.5v2M4.5 12h2M17.5 12h2"></path>',
+    relic_guest: '<path d="M3 7.5l9-3.5 9 3.5v9l-9 3.5-9-3.5z"></path><path d="M12 4v16M7 10.5l3 1.2M14 11.7l3-1.2"></path>',
+    relic_map: '<polygon points="3,6 9,4 15,6 21,4 21,18 15,20 9,18 3,20"></polygon><line x1="9" y1="4" x2="9" y2="18"></line><line x1="15" y1="6" x2="15" y2="20"></line><path d="M16.5 10.5l2.5 2.5M19 10.5l-2.5 2.5"></path>',
+    relic_shatter: '<circle cx="12" cy="12" r="8.5"></circle><polyline points="7,6.5 11.5,11 10,14.5 16.5,18"></polyline><polyline points="11.5,11 16,8.5"></polyline>',
+    relic_chronicle: '<path d="M5 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5z"></path><line x1="8" y1="4" x2="8" y2="20"></line><polyline points="12,4 12,11 14,9.5 16,11 16,4"></polyline>',
+    relic_mirror: '<polygon points="12,2.5 19,6.5 19,14.5 12,18.5 5,14.5 5,6.5"></polygon><line x1="12" y1="18.5" x2="12" y2="22.5"></line><path d="M12 7.5l1 2.2 2.2 1-2.2 1-1 2.2-1-2.2-2.2-1 2.2-1z"></path>',
+    relic_spoon: '<ellipse cx="12" cy="6.8" rx="3.6" ry="4.5"></ellipse><line x1="12" y1="11.3" x2="12" y2="21.5"></line><circle cx="12" cy="20.5" r="1.2"></circle>'
+  };
+
+  function getRelics() {
+    try { return JSON.parse(localStorage.getItem(K_RELICS)) || {}; }
+    catch (e) { return {}; }
+  }
+  function unlockRelicsFromFlags(fl) {
+    const ids = Engine.matchRelicsFromFlags(fl || flags);
+    if (!ids.length) return;
+    const r = getRelics();
+    let changed = false;
+    ids.forEach(function (id) {
+      if (!r[id]) { r[id] = true; changed = true; }
+    });
+    if (changed) {
+      try { localStorage.setItem(K_RELICS, JSON.stringify(r)); } catch (e) {}
+    }
+  }
+  function renderRelics() {
+    const rMap = getRelics();
+    const list = Engine.RELIC_CABINET || [];
+    const resCfg = Engine.RELIC_RESONANCE;
+    const got = list.filter(function (item) { return !!rMap[item.id]; }).length;
+    const reqIds = (resCfg && resCfg.requiredRelics) ? resCfg.requiredRelics : [];
+    const reqGot = reqIds.filter(function (id) { return !!rMap[id]; }).length;
+    const resonanceReady = reqIds.length > 0 && reqGot === reqIds.length;
+
+    ["title", "result"].forEach(function (scope) {
+      const el = $("relics-" + scope);
+      if (!el) return;
+      el.innerHTML = "";
+      list.forEach(function (item) {
+        const unlocked = !!rMap[item.id];
+        const slot = document.createElement("button");
+        slot.type = "button";
+        slot.className = "relic-slot" + (unlocked ? " unlocked" : "");
+        slot.dataset.relic = item.id;
+        slot.title = unlocked ? (item.name + " · " + item.origin) : ("古董证物 · " + item.shortName + "（未收录）");
+        slot.setAttribute("aria-label", unlocked ? (item.name + " 已收录证物") : (item.shortName + " 未收录证物"));
+
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("class", "relic-svg");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("aria-hidden", "true");
+        svg.innerHTML = RELIC_SVG_MAP[item.id] || '<circle cx="12" cy="12" r="6"></circle>';
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "relic-name";
+        nameSpan.textContent = unlocked ? item.shortName : "？";
+        slot.appendChild(svg);
+        slot.appendChild(nameSpan);
+
+        slot.addEventListener("click", function () {
+          const wrap = el.parentElement;
+          const wasActive = slot.classList.contains("active");
+          if (wrap) {
+            wrap.querySelectorAll(".gallery-slot.active, .card-slot.active, .relic-slot.active").forEach(function (b) {
+              b.classList.remove("active");
+            });
+          }
+          if (!wasActive) slot.classList.add("active");
+          toggleCollectionDetail(scope, "relic:" + item.id, function (box) {
+            const head = document.createElement("div");
+            head.className = "collection-detail-head";
+            const titleSpan = document.createElement("span");
+            titleSpan.textContent = unlocked ? item.name : ("古董证物 · " + item.name);
+            const tagSpan = document.createElement("span");
+            tagSpan.className = "collection-detail-tag";
+            tagSpan.textContent = unlocked ? "已入陈列匣" : "寻访线索";
+            head.appendChild(titleSpan);
+            head.appendChild(tagSpan);
+            box.appendChild(head);
+            const roleP = document.createElement("p");
+            roleP.className = "collection-detail-role";
+            roleP.textContent = "出处：" + item.origin;
+            const descP = document.createElement("p");
+            descP.className = "collection-detail-body";
+            descP.textContent = unlocked
+              ? item.desc
+              : ("在晚宴中触发「" + item.origin + "」相关抉择或烛光显影后，这件百年旧物将收入你的陈列架。");
+            box.appendChild(roleP);
+            box.appendChild(descP);
+          });
+        });
+        el.appendChild(slot);
+      });
+
+      const label = el.previousElementSibling;
+      if (label && label.classList && label.classList.contains("relics-label")) {
+        label.textContent = "古董陈列架 · 已集 " + got + "/" + list.length + " 件";
+      }
+
+      const resEl = $("relic-resonance-" + scope);
+      if (resEl && resCfg) {
+        resEl.innerHTML = "";
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "resonance-btn" + (resonanceReady ? " ready" : "");
+        btn.textContent = resonanceReady
+          ? "✦ 古董三件套已齐 · 点击拼合奏响八音盒与艾德琳未寄短笺 ♪"
+          : ("◈ 古董共鸣：集齐「旧合影 + 覆面银框 + 后人席卡」（" + reqGot + "/3）解锁八音盒与未寄短笺");
+        resEl.appendChild(btn);
+
+        const card = document.createElement("div");
+        card.className = "resonance-letter-card hidden";
+        const kicker = document.createElement("p");
+        kicker.className = "resonance-letter-kicker";
+        kicker.textContent = "♪ 1887 MUSIC BOX & UNSENT LETTER · 器物共鸣已唤醒";
+        const sub = document.createElement("p");
+        sub.className = "resonance-letter-sub";
+        sub.textContent = resCfg.subtitle;
+        const lTitle = document.createElement("h4");
+        lTitle.className = "resonance-letter-title";
+        lTitle.textContent = resCfg.letterTitle;
+        const lBody = document.createElement("p");
+        lBody.className = "resonance-letter-body";
+        lBody.textContent = resCfg.letterBody;
+        card.appendChild(kicker);
+        card.appendChild(sub);
+        card.appendChild(lTitle);
+        card.appendChild(lBody);
+        resEl.appendChild(card);
+
+        btn.addEventListener("click", function () {
+          if (resonanceReady) {
+            const willShow = card.classList.contains("hidden");
+            card.classList.toggle("hidden", !willShow);
+            if (willShow) AudioEngine.playSfx("musicbox");
+            else AudioEngine.playSfx("click");
+          } else {
+            toggleCollectionDetail(scope, "resonance:hint", function (box) {
+              const head = document.createElement("div");
+              head.className = "collection-detail-head";
+              const titleSpan = document.createElement("span");
+              titleSpan.textContent = resCfg.title;
+              const tagSpan = document.createElement("span");
+              tagSpan.className = "collection-detail-tag";
+              tagSpan.textContent = "已集 " + reqGot + "/3 件";
+              head.appendChild(titleSpan);
+              head.appendChild(tagSpan);
+              box.appendChild(head);
+              const body = document.createElement("p");
+              body.className = "collection-detail-body";
+              body.textContent = "在历次赴宴中分别收集「泛黄旧合影」（第三章走廊旧照）、「1887 覆面银框」（第二章细辨画款或炙烤画布）与「画家后人席卡」（第四章与沈先生同席交谈），即可在此拼合三件证物，奏响 1887 年的八音盒旋律并展读艾德琳写给母亲却未寄出的短笺。";
+              box.appendChild(body);
+            });
+          }
+        });
+      }
+    });
+
+    const g = getGallery();
+    const c = getCards();
+    resetGalleryBtn.classList.toggle("hidden", Object.keys(g).length === 0 && Object.keys(c).length === 0 && got === 0);
   }
 
   // ---------- 场景光照、交互隐喻与烛光端详增强 ----------
@@ -701,6 +995,7 @@
 
     target.onclick = function () {
       if (!isTyping) return;
+      if (target === storyEl) telemetry.skipCount++;
       clearTyping();
       fillRichSlice(target, segments, 0, chars.length);
       finishTyping(target);
@@ -760,6 +1055,7 @@
   }
   function jumpToUndoIndex(idx) {
     if (idx < 0 || idx >= undoStack.length) return;
+    telemetry.undoCount++;
     clearNext();
     const snap = undoStack[idx];
     undoStack = undoStack.slice(0, idx);
@@ -838,6 +1134,237 @@
     }
   }
 
+  // ---------- 烛光显影术：炙烤密文（ch2/ch4/A0）与吹熄蜡烛（B1 镜厅） ----------
+  let activeSecret = null;
+  let roastHeat = 0;
+  let roastHeating = false;
+  let roastTimer = null;
+  let blowDarkTimer = null;
+  let micStream = null;
+  let micAudioCtx = null;
+  let micRaf = null;
+
+  function stopMicBlow() {
+    if (micRaf) { cancelAnimationFrame(micRaf); micRaf = null; }
+    if (micStream) {
+      try {
+        micStream.getTracks().forEach(function (tr) { tr.stop(); });
+      } catch (e) {}
+      micStream = null;
+    }
+    if (micAudioCtx) {
+      try { micAudioCtx.close(); } catch (e) {}
+      micAudioCtx = null;
+    }
+    if (micBlowBtn) micBlowBtn.classList.remove("is-listening");
+    if (micBlowLabel) micBlowLabel.textContent = "🎙️ 轻吹麦克风熄烛";
+  }
+
+  function stopRoastHeating() {
+    roastHeating = false;
+    if (roastZone) roastZone.classList.remove("is-heating");
+    if (roastTimer) { clearInterval(roastTimer); roastTimer = null; }
+  }
+
+  function cleanupCandleSecret() {
+    stopRoastHeating();
+    stopMicBlow();
+    if (blowDarkTimer) { clearTimeout(blowDarkTimer); blowDarkTimer = null; }
+    activeSecret = null;
+    roastHeat = 0;
+    document.body.classList.remove("candle-blown", "mirror-abyss-awakened");
+    if (candleSecretStage) candleSecretStage.classList.add("hidden");
+    if (roastBox) roastBox.classList.add("hidden");
+    if (blowBox) {
+      blowBox.classList.add("hidden");
+      blowBox.classList.remove("is-extinguishing", "is-extinguished");
+    }
+  }
+
+  function setRoastHeatUI(val) {
+    roastHeat = Math.max(0, Math.min(1, val));
+    if (roastZone) {
+      roastZone.style.setProperty("--heat-pct", roastHeat.toFixed(3));
+    }
+  }
+
+  function renderRoastRevealed(secret) {
+    stopRoastHeating();
+    if (roastZone) roastZone.classList.add("hidden");
+    if (roastReveal) roastReveal.classList.remove("hidden");
+    if (roastTitle) roastTitle.textContent = secret.title;
+    if (roastCipher) roastCipher.textContent = secret.cipher;
+    if (roastText) roastText.textContent = secret.revealText || secret.reveal;
+  }
+
+  function completeRoastSecret(secret) {
+    if (!secret || flags[secret.flag]) return;
+    flags[secret.flag] = true;
+    unlockRelicsFromFlags(flags);
+    setRoastHeatUI(1);
+    AudioEngine.playSfx("sizzle");
+    AudioEngine.playSfx("chime");
+    renderRoastRevealed(secret);
+    saveGame();
+  }
+
+  function startRoastHeating() {
+    if (!activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
+    if (roastHeating) return;
+    roastHeating = true;
+    if (roastZone) roastZone.classList.add("is-heating");
+    AudioEngine.playSfx("sizzle");
+    if (roastTimer) clearInterval(roastTimer);
+    roastTimer = setInterval(function () {
+      if (!roastHeating || !activeSecret) return;
+      setRoastHeatUI(roastHeat + 0.045);
+      if (roastHeat >= 1) {
+        completeRoastSecret(activeSecret);
+      }
+    }, 50);
+  }
+
+  function renderBlowRevealed(secret) {
+    stopMicBlow();
+    if (blowDarkTimer) { clearTimeout(blowDarkTimer); blowDarkTimer = null; }
+    document.body.classList.add("candle-blown", "mirror-abyss-awakened");
+    if (blowBox) {
+      blowBox.classList.remove("is-extinguishing");
+      blowBox.classList.add("is-extinguished");
+    }
+    if (blowHint) blowHint.classList.add("hidden");
+    if (blowActions) blowActions.classList.add("hidden");
+    if (blowReveal) blowReveal.classList.remove("hidden");
+    if (blowTitle) blowTitle.textContent = secret.title;
+    if (blowCipher) blowCipher.textContent = secret.cipher;
+    if (blowText) blowText.textContent = secret.revealText || secret.reveal;
+  }
+
+  function triggerBlowCandle() {
+    if (!activeSecret || activeSecret.mode !== "blow") return;
+    if (flags[activeSecret.flag]) {
+      renderBlowRevealed(activeSecret);
+      return;
+    }
+    if (blowDarkTimer) return;
+    stopMicBlow();
+    const secret = activeSecret;
+    AudioEngine.playSfx("blow");
+    document.body.classList.add("candle-blown");
+    document.body.classList.remove("mirror-abyss-awakened");
+    if (blowBox) blowBox.classList.add("is-extinguishing");
+    if (blowCandleBtn) blowCandleBtn.disabled = true;
+    if (micBlowBtn) micBlowBtn.disabled = true;
+    if (blowCandleLabel) blowCandleLabel.textContent = "烛火已熄 · 黑暗中镜影正浮现……";
+
+    const darkDelay = settings.speed === "instant" ? 60 : 1450;
+    blowDarkTimer = setTimeout(function () {
+      blowDarkTimer = null;
+      flags[secret.flag] = true;
+      unlockRelicsFromFlags(flags);
+      renderBlowRevealed(secret);
+      saveGame();
+    }, darkDelay);
+  }
+
+  function toggleMicBlow() {
+    if (!activeSecret || activeSecret.mode !== "blow" || flags[activeSecret.flag]) return;
+    if (micStream) {
+      stopMicBlow();
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      triggerBlowCandle();
+      return;
+    }
+    if (micBlowBtn) micBlowBtn.classList.add("is-listening");
+    if (micBlowLabel) micBlowLabel.textContent = "🎙️ 请对准麦克风轻吹一口气…";
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
+      if (!activeSecret || activeSecret.mode !== "blow" || flags[activeSecret.flag]) {
+        stream.getTracks().forEach(function (tr) { tr.stop(); });
+        return;
+      }
+      micStream = stream;
+      const Ctor = window.AudioContext || window.webkitAudioContext;
+      if (!Ctor) {
+        triggerBlowCandle();
+        return;
+      }
+      micAudioCtx = new Ctor();
+      const src = micAudioCtx.createMediaStreamSource(stream);
+      const analyser = micAudioCtx.createAnalyser();
+      analyser.fftSize = 256;
+      src.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      let blowFrames = 0;
+      function checkBlow() {
+        if (!micStream || !analyser) return;
+        analyser.getByteFrequencyData(data);
+        // 吹气声集中在低频段（前 16 个频点）
+        let sum = 0;
+        for (let i = 0; i < 16; i++) sum += data[i];
+        const avg = sum / 16;
+        if (avg > 88) {
+          blowFrames++;
+          if (blowFrames >= 3) {
+            triggerBlowCandle();
+            return;
+          }
+        } else {
+          blowFrames = Math.max(0, blowFrames - 1);
+        }
+        micRaf = requestAnimationFrame(checkBlow);
+      }
+      micRaf = requestAnimationFrame(checkBlow);
+    }).catch(function () {
+      stopMicBlow();
+      triggerBlowCandle();
+    });
+  }
+
+  function setupCandleSecret(nodeId) {
+    cleanupCandleSecret();
+    const secret = Engine.getCandleSecret(nodeId);
+    if (!secret || !candleSecretStage) return;
+    activeSecret = secret;
+    candleSecretStage.classList.remove("hidden");
+
+    if (secret.mode === "roast") {
+      if (roastBox) roastBox.classList.remove("hidden");
+      if (flags[secret.flag]) {
+        renderRoastRevealed(secret);
+      } else {
+        setRoastHeatUI(0);
+        if (roastZone) {
+          roastZone.classList.remove("hidden");
+          roastZone.style.setProperty("--zone-x", "50%");
+          roastZone.style.setProperty("--zone-y", "50%");
+        }
+        if (roastReveal) roastReveal.classList.add("hidden");
+        if (roastHint) roastHint.textContent = secret.hint;
+        if (roastGhostCipher) roastGhostCipher.textContent = secret.cipher;
+      }
+      return;
+    }
+
+    if (secret.mode === "blow") {
+      if (blowBox) blowBox.classList.remove("hidden");
+      if (flags[secret.flag]) {
+        renderBlowRevealed(secret);
+      } else {
+        if (blowHint) {
+          blowHint.textContent = secret.hint;
+          blowHint.classList.remove("hidden");
+        }
+        if (blowActions) blowActions.classList.remove("hidden");
+        if (blowCandleBtn) blowCandleBtn.disabled = false;
+        if (micBlowBtn) micBlowBtn.disabled = false;
+        if (blowCandleLabel) blowCandleLabel.textContent = "吹熄手中烛火 · 屏息凝望镜渊";
+        if (blowReveal) blowReveal.classList.add("hidden");
+      }
+    }
+  }
+
   // ---------- 节点播放 ----------
   function playNode(nodeId, replay) {
     const node = NODES[nodeId];
@@ -847,6 +1374,7 @@
     pendingChoiceSnap = null;
     optionsEl.innerHTML = "";
     applyNodeFx(node);
+    setupCandleSecret(nodeId);
     updateUndoBar();
 
     if (waxEnvelope) {
@@ -864,7 +1392,7 @@
     }
 
     if (node.type === "narrative") {
-      const resolved = Engine.resolveNode(node, flags, variantMap);
+      const resolved = Engine.resolveNode(node, flags, variantMap, inviter);
       chapterEl.textContent = node.chapter || "";
       renderProgress();
       if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
@@ -891,7 +1419,7 @@
     }
 
     if (node.type === "choice") {
-      const resolved = Engine.resolveNode(node, flags, variantMap);
+      const resolved = Engine.resolveNode(node, flags, variantMap, inviter);
       chapterEl.textContent = node.chapter || "";
       renderProgress();
       if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
@@ -908,6 +1436,7 @@
       currentEnding = node;
       unlockEnding(node.id);
       unlockCard(computeMBTI().code);
+      unlockRelicsFromFlags(flags);
       saveGame();
       showResult(node);
     }
@@ -920,6 +1449,8 @@
 
   function showOptions(node, rawOptions) {
     optionsEl.innerHTML = "";
+    optionsShownAt = Date.now();
+    lastHoveredOptIdx = -1;
     const list = rawOptions || node.options;
     const visible = list.filter(optionVisible);
     visible.forEach(function (opt, idx) {
@@ -935,6 +1466,14 @@
       btn.appendChild(keySpan);
       btn.appendChild(textSpan);
       btn.style.transitionDelay = (idx * 0.1) + "s";
+      const trackHover = function () {
+        if (lastHoveredOptIdx >= 0 && lastHoveredOptIdx !== idx) {
+          telemetry.hoverSwitches++;
+        }
+        lastHoveredOptIdx = idx;
+      };
+      btn.addEventListener("pointerenter", trackHover);
+      btn.addEventListener("focus", trackHover);
       btn.addEventListener("click", function () { chooseOption(node, opt, btn); });
       optionsEl.appendChild(btn);
       requestAnimationFrame(function () { btn.classList.add("show"); });
@@ -966,6 +1505,14 @@
     AudioEngine.playSfx("click");
     dismissToolbarGuide();
 
+    if (optionsShownAt > 0) {
+      const thinkMs = Math.max(0, Date.now() - optionsShownAt);
+      telemetry.totalThinkMs += thinkMs;
+      if (thinkMs >= 8000) telemetry.hesitateCount++;
+      else if (thinkMs <= 2200) telemetry.quickCount++;
+      optionsShownAt = 0;
+    }
+
     const preSnap = snapshot();
     pendingChoiceSnap = preSnap;
     undoStack.push(preSnap);
@@ -974,6 +1521,7 @@
     pushHistory({ chosen: opt.text });
 
     if (Engine.applyOption(scores, flags, affinity, opt)) choiceIndex++;
+    unlockRelicsFromFlags(flags);
     renderProgress();
 
     // 选后反馈：保留所选卡片定格，收起未选项后平滑浮现反馈正文 + 「继续（空格）」按钮
@@ -998,6 +1546,7 @@
   }
   function doUndo() {
     if (!undoStack.length) return;
+    telemetry.undoCount++;
     clearNext();
     restore(undoStack.pop());
     AudioEngine.playSfx("click");
@@ -1041,19 +1590,48 @@
     return Engine.buildEndingText(node, flags);
   }
 
+  function resetCardTilt() {
+    if (!mbtiBox) return;
+    mbtiBox.classList.remove("is-tilting");
+    mbtiBox.style.setProperty("--card-rx", "0deg");
+    mbtiBox.style.setProperty("--card-ry", "0deg");
+    mbtiBox.style.setProperty("--glare-x", "50%");
+    mbtiBox.style.setProperty("--glare-y", "30%");
+  }
+
   function flipMbtiCard(toBack) {
     if (!mbtiBox) return;
+    resetCardTilt();
     const wantFlip = typeof toBack === "boolean" ? toBack : !mbtiBox.classList.contains("is-flipped");
     mbtiBox.classList.toggle("is-flipped", wantFlip);
     AudioEngine.playSfx(wantFlip ? "flip" : "click");
   }
 
+  function computeCurrentShadow() {
+    const m = computeMBTI();
+    const candleKeys = ["flag_secret_canvas", "flag_secret_map", "flag_secret_diary", "flag_candle_blown"];
+    let cCount = 0;
+    candleKeys.forEach(function (k) { if (flags[k]) cCount++; });
+    telemetry.candleCount = cCount;
+    return Engine.computeShadowProfile(m.code, telemetry);
+  }
+
+  function renderMbtiShadow() {
+    const shadowTagEl = $("mbti-shadow-tag");
+    const shadowNoteEl = $("mbti-shadow-note");
+    const sh = computeCurrentShadow();
+    if (shadowTagEl) shadowTagEl.textContent = sh.tag;
+    if (shadowNoteEl) shadowNoteEl.textContent = "「" + sh.note + "」";
+  }
+
   function showResult(ending) {
+    cleanupCandleSecret();
     gameScreen.classList.add("hidden");
     toolbar.classList.add("hidden");
     resultScreen.classList.remove("hidden");
     renderGallery();
     renderCards();
+    renderRelics();
     AudioEngine.playSfx("reveal");
 
     endingTitleEl.textContent = ending.endingTitle;
@@ -1088,6 +1666,49 @@
     }
 
     renderMbtiBars();
+    renderMbtiFootprints();
+    renderMbtiShadow();
+    renderBondSection();
+  }
+
+  function renderMbtiFootprints() {
+    const fpEl = $("mbti-footprints");
+    if (!fpEl) return;
+    fpEl.innerHTML = "";
+    const list = buildFootprints();
+    list.forEach(function (label) {
+      const pill = document.createElement("span");
+      pill.className = "footprint-pill";
+      pill.textContent = "✦ " + label;
+      fpEl.appendChild(pill);
+    });
+  }
+
+  function renderBondSection() {
+    if (!bondBox || !currentEnding) return;
+    const m = computeMBTI();
+    const bond = inviter ? Engine.computeBond(inviter, { code: m.code, endingId: currentEnding.id }) : null;
+    if (bond) {
+      bondBox.classList.remove("hidden");
+      if (bondInviterCode) bondInviterCode.textContent = bond.inviter.code;
+      if (bondInviterMeta) bondInviterMeta.textContent = bond.inviter.name + " · " + bond.inviter.endingShortTitle;
+      if (bondPlayerCode) bondPlayerCode.textContent = bond.player.code;
+      if (bondPlayerMeta) bondPlayerMeta.textContent = bond.player.name + " · " + bond.player.endingShortTitle;
+      if (bondTitle) bondTitle.textContent = "「" + bond.title + "」";
+      if (bondResonance) bondResonance.textContent = bond.resonance;
+      if (bondDesc) bondDesc.textContent = bond.desc;
+      if (bondRoute) bondRoute.textContent = "【" + bond.routeTitle + "】" + bond.routeDesc;
+      if (bondSelectMbti) bondSelectMbti.value = bond.inviter.code;
+      if (bondSelectEnding) bondSelectEnding.value = bond.inviter.endingKey;
+      if (bondToggleBtn) bondToggleBtn.textContent = "更换同席友人 ▾";
+      if (bondClearBtn) bondClearBtn.classList.remove("hidden");
+      if (cardBtn) cardBtn.textContent = "保存双人合盘图";
+    } else {
+      bondBox.classList.add("hidden");
+      if (bondToggleBtn) bondToggleBtn.textContent = "与友人同席合盘 ▾";
+      if (bondClearBtn) bondClearBtn.classList.add("hidden");
+      if (cardBtn) cardBtn.textContent = "保存名片图";
+    }
   }
 
   // ---------- 四维度倾向条（含百分比） ----------
@@ -1116,11 +1737,12 @@
       const track = document.createElement("span");
       track.className = "bar-track";
       const fill = document.createElement("span");
-      fill.className = "bar-fill";
       if (l >= r) {
+        fill.className = "bar-fill fill-from-l";
         fill.style.left = "0";
         fill.style.width = pctL + "%";
       } else {
+        fill.className = "bar-fill fill-from-r";
         fill.style.left = (100 - pctR) + "%";
         fill.style.width = pctR + "%";
       }
@@ -1147,15 +1769,25 @@
     const g = getGallery();
     const got = Object.keys(g).length;
     const cardsGot = Object.keys(getCards()).length;
+    const mySeed = Engine.encodeInviteSeed(m.code, currentEnding.id, flags);
+    const shareUrl = mySeed
+      ? ("https://mist.gchkc.top/#invite=" + mySeed)
+      : "https://mist.gchkc.top";
+    const bond = inviter ? Engine.computeBond(inviter, { code: m.code, endingId: currentEnding.id }) : null;
+    const bondLine = bond
+      ? ("\n✦ 双人同席合盘：我与【" + bond.inviter.code + " · " + bond.inviter.name + "】结成了「" + bond.title + "」（" + bond.resonance + "）\n" + bond.desc + "\n")
+      : "";
+    const shadow = computeCurrentShadow();
+    const shadowLine = shadow ? ("\n✒ 维恩暗批〔" + shadow.tag + "〕：" + shadow.note) : "";
     const shareTitle = "迷雾庄园 · " + currentEnding.endingTitle;
     const shareSummary =
-      "晚宴为我写下的画像——" + m.code + " · " + m.name + "\n" + m.role;
+      "晚宴为我写下的画像——" + m.code + " · " + m.name + "\n" + m.role + shadowLine + bondLine;
     const cleanEndingText = buildEndingText(currentEnding).replace(/\*\*(.+?)\*\*/g, "$1");
     const text =
       shareTitle + "\n" +
       cleanEndingText + "\n\n" +
       shareSummary + "\n\n" +
-      "来迷雾庄园，赴一场测出你十六型人格的晚宴：https://mist.gchkc.top\n" +
+      "持我的专属请柬入席，测出你的十六型人格并揭晓我们的庄园合盘：" + shareUrl + "\n" +
       "四条剧情线 · 一个隐藏结局 · 我已解锁 " + got + "/4 个结局 · 名片夹 " + cardsGot + "/16 型";
     if (canShare()) {
       navigator.share({ title: shareTitle, text: text })
@@ -1189,37 +1821,8 @@
   }
 
   // 提炼本局专属晚宴轨迹印记（供名片图展示个性化足迹）
-  const FOOTPRINT_LABELS = [
-    { flag: "flag_loud",      label: "推门自报来意" },
-    { flag: "flag_quiet",     label: "叩环静候檐下" },
-    { flag: "flag_frame",     label: "轻翻覆面银框" },
-    { flag: "flag_detail",    label: "细辨1887画款" },
-    { flag: "flag_sigh",      label: "凝望黑裙背影" },
-    { flag: "flag_guest",     label: "与沈先生同席" },
-    { flag: "flag_photo",     label: "瞥见滑落旧照" },
-    { flag: "flag_mercy",     label: "温言解围碎瓷" },
-    { flag: "flag_logic",     label: "冷静建言锔补" },
-    { flag: "flag_chronicle", label: "校对百年日志" },
-    { flag: "flag_return",    label: "银匙归还陈列" },
-    { flag: "flag_keep",      label: "带走百年银匙" },
-    { flag: "flag_room",      label: "推开纸星小门" },
-    { flag: "flag_respect",   label: "守礼未启小门" },
-    { flag: "flag_find",      label: "荒草拾得旧匙" },
-    { flag: "flag_hook",      label: "井台挂回银匙" },
-    { flag: "flag_song",      label: "井畔静立听曲" },
-    { flag: "flag_rose",      label: "井台播撒蔷薇" },
-    { flag: "flag_stone",     label: "井畔立碑为记" }
-  ];
   function buildFootprints() {
-    const picked = [];
-    // 优先取线内特征旗标 + 公共线代表旗标，凑齐 3 枚印记
-    for (let i = FOOTPRINT_LABELS.length - 1; i >= 0; i--) {
-      if (flags[FOOTPRINT_LABELS[i].flag]) {
-        picked.unshift(FOOTPRINT_LABELS[i].label);
-        if (picked.length >= 3) break;
-      }
-    }
-    return picked;
+    return Engine.buildFootprints(flags);
   }
 
   function saveCard() {
@@ -1227,15 +1830,22 @@
     if (mbtiBox && mbtiBox.classList.contains("mbti-show") && !mbtiBox.classList.contains("is-flipped")) {
       flipMbtiCard(true);
     }
+    const m = computeMBTI();
     const gotEndings = Object.keys(getGallery()).length;
     const gotCards = Object.keys(getCards()).length;
+    const gotRelics = Object.keys(getRelics()).length;
+    const bond = inviter ? Engine.computeBond(inviter, { code: m.code, endingId: currentEnding.id }) : null;
+    const mySeed = Engine.encodeInviteSeed(m.code, currentEnding.id, flags);
     CardExporter.saveCardImage({
-      mbti: computeMBTI(),
+      mbti: m,
       endingTitle: currentEnding.endingTitle,
       scores: scores,
       dims: MBTI_DIMS,
       footprints: buildFootprints(),
-      collectionSummary: "已解锁 " + gotEndings + "/4 结局 · 名片夹 " + gotCards + "/16 型"
+      shadow: computeCurrentShadow(),
+      bond: bond,
+      inviteSeed: mySeed,
+      collectionSummary: "已解锁 " + gotEndings + "/4 结局 · 名片夹 " + gotCards + "/16 型 · 证物 " + gotRelics + "/8 件"
     }, cardBtn);
   }
 
@@ -1245,6 +1855,7 @@
       v: 1,
       gallery: getGallery(),
       cards: getCards(),
+      relics: getRelics(),
       save: loadSave()
     };
     const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
@@ -1267,11 +1878,15 @@
       if (data.cards && typeof data.cards === "object") {
         localStorage.setItem(K_CARDS, JSON.stringify(data.cards));
       }
+      if (data.relics && typeof data.relics === "object") {
+        localStorage.setItem(K_RELICS, JSON.stringify(data.relics));
+      }
       if (data.save && validSave(data.save)) {
         localStorage.setItem(K_SAVE, JSON.stringify(data.save));
       }
       renderGallery();
       renderCards();
+      renderRelics();
       updateContinueBtn();
       if (importStatus) importStatus.textContent = "恢复成功！图鉴与存档已同步。";
       importBtn.textContent = "已恢复";
@@ -1386,6 +2001,21 @@
   }
 
   // ---------- 流程控制 ----------
+  let gateTimer = null;
+  function playGateTransition() {
+    if (!gateTransition) return;
+    if (gateTimer) { clearTimeout(gateTimer); gateTimer = null; }
+    gateTransition.classList.remove("gate-opening");
+    // 强制重排以支持连续重开局时重新触发 3D 双门洞开动画
+    void gateTransition.offsetWidth;
+    gateTransition.classList.add("gate-opening");
+    AudioEngine.playSfx("gate");
+    gateTimer = setTimeout(function () {
+      gateTimer = null;
+      gateTransition.classList.remove("gate-opening");
+    }, 1200);
+  }
+
   function startGame(fresh) {
     closePanels();
     titleScreen.classList.add("hidden");
@@ -1393,6 +2023,7 @@
     gameScreen.classList.remove("hidden");
     toolbar.classList.remove("hidden");
     showToolbarGuideIfNeeded();
+    playGateTransition();
 
     if (fresh) {
       resetState();
@@ -1428,9 +2059,13 @@
     currentEnding = null;
     undoStack = [];
     log = [];
+    telemetry = newTelemetry();
+    optionsShownAt = 0;
+    lastHoveredOptIdx = -1;
     clearTyping();
     clearAuto();
     clearNext();
+    cleanupCandleSecret();
     storyEl.textContent = "";
     storyEl.onclick = null;
     endingTextEl.textContent = "";
@@ -1459,6 +2094,7 @@
     closePanels();
     clearNext();
     clearAuto();
+    cleanupCandleSecret();
     saveGame();
     gameScreen.classList.add("hidden");
     resultScreen.classList.add("hidden");
@@ -1469,6 +2105,7 @@
     updateContinueBtn();
     renderGallery();
     renderCards();
+    renderRelics();
   }
 
   // ---------- 键盘操作 ----------
@@ -1550,6 +2187,53 @@
   if (waxSealBtn) {
     waxSealBtn.addEventListener("click", unsealEnvelope);
   }
+  if (roastZone) {
+    roastZone.addEventListener("pointerenter", startRoastHeating);
+    roastZone.addEventListener("pointerdown", function (e) {
+      const rect = roastZone.getBoundingClientRect();
+      if (rect.width && rect.height) {
+        const zx = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+        const zy = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+        roastZone.style.setProperty("--zone-x", zx.toFixed(1) + "%");
+        roastZone.style.setProperty("--zone-y", zy.toFixed(1) + "%");
+      }
+      startRoastHeating();
+    });
+    roastZone.addEventListener("pointermove", function (e) {
+      const rect = roastZone.getBoundingClientRect();
+      if (rect.width && rect.height) {
+        const zx = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
+        const zy = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
+        roastZone.style.setProperty("--zone-x", zx.toFixed(1) + "%");
+        roastZone.style.setProperty("--zone-y", zy.toFixed(1) + "%");
+      }
+      if (!roastHeating) startRoastHeating();
+    }, { passive: true });
+    roastZone.addEventListener("pointerleave", stopRoastHeating);
+    roastZone.addEventListener("pointerup", stopRoastHeating);
+    roastZone.addEventListener("click", function () {
+      if (!activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
+      if (settings.speed === "instant" || roastHeat >= 0.45) {
+        completeRoastSecret(activeSecret);
+      } else {
+        setRoastHeatUI(roastHeat + 0.55);
+        AudioEngine.playSfx("sizzle");
+        if (roastHeat >= 1) completeRoastSecret(activeSecret);
+      }
+    });
+    roastZone.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (activeSecret && activeSecret.mode === "roast") completeRoastSecret(activeSecret);
+      }
+    });
+  }
+  if (blowCandleBtn) {
+    blowCandleBtn.addEventListener("click", triggerBlowCandle);
+  }
+  if (micBlowBtn) {
+    micBlowBtn.addEventListener("click", toggleMicBlow);
+  }
   if (mbtiFront) {
     mbtiFront.addEventListener("click", function () { flipMbtiCard(true); });
     mbtiFront.addEventListener("keydown", function (e) {
@@ -1565,6 +2249,62 @@
       flipMbtiCard(false);
     });
   }
+  if (mbtiBox) {
+    mbtiBox.addEventListener("pointermove", function (e) {
+      if (!mbtiBox.classList.contains("mbti-show")) return;
+      const rect = mbtiBox.getBoundingClientRect();
+      const w = rect.width || mbtiBox.offsetWidth || 480;
+      const h = rect.height || mbtiBox.offsetHeight || 560;
+      const nx = Math.max(0, Math.min(1, (e.clientX - rect.left) / w));
+      const ny = Math.max(0, Math.min(1, (e.clientY - rect.top) / h));
+      const rx = ((0.5 - ny) * 10).toFixed(2);
+      const ry = ((nx - 0.5) * 12).toFixed(2);
+      mbtiBox.classList.add("is-tilting");
+      mbtiBox.style.setProperty("--card-rx", rx + "deg");
+      mbtiBox.style.setProperty("--card-ry", ry + "deg");
+      mbtiBox.style.setProperty("--glare-x", (nx * 100).toFixed(1) + "%");
+      mbtiBox.style.setProperty("--glare-y", (ny * 100).toFixed(1) + "%");
+    }, { passive: true });
+    mbtiBox.addEventListener("pointerleave", resetCardTilt);
+  }
+  if (inviterClearBtn) {
+    inviterClearBtn.addEventListener("click", function () {
+      AudioEngine.playSfx("click");
+      clearInviter();
+    });
+  }
+  if (bondToggleBtn && bondPicker) {
+    bondToggleBtn.addEventListener("click", function () {
+      const willOpen = bondPicker.classList.contains("hidden");
+      bondPicker.classList.toggle("hidden", !willOpen);
+      bondToggleBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+      AudioEngine.playSfx("click");
+    });
+  }
+  if (bondApplyBtn) {
+    bondApplyBtn.addEventListener("click", function () {
+      const mVal = bondSelectMbti ? bondSelectMbti.value : "INTJ";
+      const eVal = bondSelectEnding ? bondSelectEnding.value : "A";
+      if (setInviterBySeed(mVal + "-" + eVal)) {
+        if (bondPicker) bondPicker.classList.add("hidden");
+        if (bondToggleBtn) bondToggleBtn.setAttribute("aria-expanded", "false");
+        AudioEngine.playSfx("chime");
+      }
+    });
+  }
+  if (bondClearBtn) {
+    bondClearBtn.addEventListener("click", function () {
+      AudioEngine.playSfx("click");
+      if (bondPicker) bondPicker.classList.add("hidden");
+      if (bondToggleBtn) bondToggleBtn.setAttribute("aria-expanded", "false");
+      clearInviter();
+    });
+  }
+  window.addEventListener("hashchange", function () {
+    if (window.location.hash && window.location.hash.indexOf("invite=") >= 0) {
+      setInviterBySeed(window.location.hash);
+    }
+  });
 
   // ---------- 实时烛光随鼠标/指尖摇曳微交互（rAF 节流） ----------
   let candleRaf = null;
@@ -1683,14 +2423,16 @@
 
   undoBtn.addEventListener("click", doUndo);
   resetGalleryBtn.addEventListener("click", function () {
-    if (!window.confirm("确定要清空结局图鉴与 16 型名片夹吗？")) return;
+    if (!window.confirm("确定要清空结局图鉴、16 型名片夹与古董陈列架吗？")) return;
     try {
       localStorage.removeItem(K_GALLERY);
       localStorage.removeItem(K_CARDS);
+      localStorage.removeItem(K_RELICS);
       localStorage.removeItem(K_RUNS);
     } catch (e) {}
     renderGallery();
     renderCards();
+    renderRelics();
     updateContinueBtn();
     resetGalleryBtn.classList.add("hidden");
   });
@@ -1718,8 +2460,11 @@
   // ---------- 初始化 ----------
   loadSettings();
   applySettingsUI();
+  loadInviter();
+  renderInviterBanner();
   renderGallery();
   renderCards();
+  renderRelics();
   updateContinueBtn();
   updateShareBtn();
 })();

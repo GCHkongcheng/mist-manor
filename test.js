@@ -316,8 +316,132 @@ altNodes.forEach(n => {
   ok("endingC 主体正文充实（≥120 字，实际 " + cLen + " 字）", cLen >= 120);
 }
 
-// ---------- [7] 抽样 ----------
-console.log("\n[7] 抽样路径");
+// ---------- [7] 友人请柬种子编解码 · 前客余温 · 双人同席合盘验证 ----------
+console.log("\n[7] 友人请柬种子编解码 · 前客余温 · 双人同席合盘 (16×16×4×4)");
+{
+  const sampleFlags = { flag_quiet: true, flag_detail: true, flag_return: true };
+  const seed = Engine.encodeInviteSeed("INTJ", "endingA", sampleFlags);
+  ok("encodeInviteSeed 生成紧凑种子码", seed === "INTJ-A-13a");
+
+  const parsedFromHash = Engine.parseInviteSeed("https://mist.gchkc.top/#invite=" + seed);
+  ok("parseInviteSeed 可从完整 URL Hash 解析邀请人信息与 3 枚轨迹",
+    parsedFromHash && parsedFromHash.code === "INTJ" && parsedFromHash.endingKey === "A" &&
+    parsedFromHash.footprints.length === 3 && parsedFromHash.flags.flag_detail === true);
+
+  const parsedShort = Engine.parseInviteSeed("enfp-b");
+  ok("parseInviteSeed 支持大小写不敏感的简写种子 (enfp-b)",
+    parsedShort && parsedShort.code === "ENFP" && parsedShort.endingId === "endingB");
+
+  ok("parseInviteSeed 对非法种子安全返回 null",
+    Engine.parseInviteSeed("XXXX-A") === null && Engine.parseInviteSeed("") === null);
+
+  // 验证 ch2 / ch5 / ch6 前客余温织入
+  const ch2WithInv = Engine.resolveNode(NODES["ch2"], {}, {}, parsedFromHash);
+  const ch5WithInv = Engine.resolveNode(NODES["ch5"], {}, {}, parsedFromHash);
+  const ch6WithInv = Engine.resolveNode(NODES["ch6"], {}, {}, parsedFromHash);
+  ok("resolveNode 在 ch2/ch5/ch6 织入对应邀请人的〔前客余温〕",
+    ch2WithInv.text.indexOf("〔前客余温〕") >= 0 &&
+    ch5WithInv.text.indexOf("〔前客余温〕") >= 0 &&
+    ch6WithInv.text.indexOf("随主人步入了书房") >= 0);
+
+  // 枚举全部 16 × 16 × 4 × 4 = 4096 种双人合盘组合
+  const types = Object.keys(MBTI_TYPES);
+  const ends = ["A", "B", "C", "D"];
+  const bondTitles = new Set();
+  const routeTitles = new Set();
+  let allValid = true;
+  types.forEach(t1 => {
+    ends.forEach(e1 => {
+      types.forEach(t2 => {
+        ends.forEach(e2 => {
+          const b = Engine.computeBond({ code: t1, endingKey: e1 }, { code: t2, endingKey: e2 });
+          if (!b || !b.title || !b.resonance || !b.desc || !b.routeTitle || !b.routeDesc) {
+            allValid = false;
+          } else {
+            bondTitles.add(b.title);
+            routeTitles.add(b.routeTitle);
+          }
+        });
+      });
+    });
+  });
+  ok("4096 种双人合盘组合全部生成有效判词与路线跋文", allValid);
+  ok("覆盖全部 8 种人格关系原型与 9 种结局交汇原型", bondTitles.size === 8 && routeTitles.size === 9);
+}
+
+console.log("\n[8] 烛光显影术（炙烤密文 ch2/ch4/A0 + 镜厅吹熄蜡烛 B1）");
+{
+  const sCh2 = Engine.getCandleSecret("ch2");
+  const sCh4 = Engine.getCandleSecret("ch4");
+  const sA0  = Engine.getCandleSecret("A0");
+  const sB1  = Engine.getCandleSecret("B1");
+  ok("ch2/ch4/A0 配置为 roast 炙烤显影模式，B1 配置为 blow 吹熄蜡烛模式",
+    sCh2 && sCh2.mode === "roast" &&
+    sCh4 && sCh4.mode === "roast" &&
+    sA0 && sA0.mode === "roast" &&
+    sB1 && sB1.mode === "blow" &&
+    Engine.getCandleSecret("ch1") === null);
+
+  const cFlags = { flag_secret_canvas: true, flag_candle_blown: true };
+  const fp = Engine.buildFootprints(cFlags);
+  ok("烛光显影旗标可提炼为专属考据足迹印章",
+    fp.indexOf("炙烤画布显影当票") >= 0 && fp.indexOf("吹熄烛火窥见镜渊") >= 0);
+
+  const endBText = Engine.buildEndingText(NODES["endingB"], cFlags);
+  ok("buildEndingText 将烛光显影发现的密文回响织入结局正文",
+    endBText.indexOf("画布背面被烛火烘出的那行当票编号") >= 0 &&
+    endBText.indexOf("在镜厅吹熄烛火的那两秒极暗里") >= 0);
+}
+
+console.log("\n[9] 潜意识行为侧写 (Micro-Telemetry) · 命运证物陈列匣 (Relic Cabinet)");
+{
+  const shEntj = Engine.computeShadowProfile("ENTJ", { hoverSwitches: 8, undoCount: 3 });
+  ok("ENTJ 高游移+悔棋触发「表象 ENTJ · 潜影 INFP」维恩手写暗批",
+    shEntj.surfaceCode === "ENTJ" &&
+    shEntj.shadowCode === "INFP" &&
+    shEntj.tag === "表象 ENTJ · 潜影 INFP" &&
+    shEntj.note.indexOf("8 次游移") >= 0 &&
+    shEntj.note.indexOf("3 次拨回怀表") >= 0);
+
+  let allShadowsValid = true;
+  const sampleTelemetries = [
+    {},
+    { hoverSwitches: 6, undoCount: 0 },
+    { hoverSwitches: 1, undoCount: 2 },
+    { skipCount: 5, quickCount: 8 },
+    { hesitateCount: 3, totalThinkMs: 40000 },
+    { candleCount: 2, totalThinkMs: 22000 }
+  ];
+  Object.keys(MBTI_TYPES).forEach(code => {
+    sampleTelemetries.forEach(tm => {
+      const sp = Engine.computeShadowProfile(code, tm);
+      if (!sp || !MBTI_TYPES[sp.surfaceCode] || !MBTI_TYPES[sp.shadowCode] || !sp.tag || !sp.note) {
+        allShadowsValid = false;
+      }
+    });
+  });
+  ok("16 型人格 × 6 类微动作侧写模板全部生成合法表里双生人格与暗批", allShadowsValid);
+
+  ok("RELIC_CABINET 包含 8 件古董证物且 RELIC_RESONANCE 配置三件套八音盒短笺",
+    Array.isArray(Engine.RELIC_CABINET) && Engine.RELIC_CABINET.length === 8 &&
+    Engine.RELIC_RESONANCE && Engine.RELIC_RESONANCE.requiredRelics.length === 3 &&
+    Engine.RELIC_RESONANCE.letterBody.indexOf("艾德琳") >= 0);
+
+  const unlockedRelics = Engine.matchRelicsFromFlags({
+    flag_photo: true,
+    flag_detail: true,
+    flag_guest: true,
+    flag_mercy: true
+  });
+  ok("matchRelicsFromFlags 准确映射对应的古董证物 ID",
+    unlockedRelics.indexOf("relic_photo") >= 0 &&
+    unlockedRelics.indexOf("relic_frame") >= 0 &&
+    unlockedRelics.indexOf("relic_guest") >= 0 &&
+    unlockedRelics.indexOf("relic_shatter") >= 0);
+}
+
+// ---------- [10] 抽样 ----------
+console.log("\n[10] 抽样路径");
 // 找一条 D 线路径打印
 const dPath = allPaths.find(p => p.ending === "endingD");
 console.log("  隐藏结局样例 → MBTI: " + computeMBTI(dPath.scores) +

@@ -98,7 +98,9 @@
     var dims = opts.dims || [];
     var footprints = opts.footprints || [];
     var collectionSummary = opts.collectionSummary || "";
-    var W = 1080, H = 1560;
+    var bond = opts.bond || null;
+    var inviteSeed = opts.inviteSeed || "";
+    var W = 1080, H = bond ? 1840 : 1560;
     var cv = document.createElement("canvas");
     cv.width = W; cv.height = H;
     var ctx = cv.getContext("2d");
@@ -136,38 +138,38 @@
     ctx.beginPath(); ctx.moveTo(W / 2 - 160, 352); ctx.lineTo(W / 2 + 160, 352); ctx.stroke();
 
     // 人格代号（精确跨浏览器居中，无偏移）
-    ctx.fillStyle = gold; ctx.font = "190px " + latin;
-    drawCenteredText(ctx, m.code, W / 2, 556, 20);
-    ctx.fillStyle = ink; ctx.font = "56px " + serif;
-    drawCenteredText(ctx, m.name, W / 2, 652, 10);
-    ctx.fillStyle = gold; ctx.font = "34px " + serif;
+    ctx.fillStyle = gold; ctx.font = "184px " + latin;
+    drawCenteredText(ctx, m.code, W / 2, 542, 20);
+    ctx.fillStyle = ink; ctx.font = "54px " + serif;
+    drawCenteredText(ctx, m.name, W / 2, 634, 10);
+    ctx.fillStyle = gold; ctx.font = "33px " + serif;
     var roleLines = wrapLines(ctx, "「" + m.role + "」", W - 240);
-    var y = 724;
-    roleLines.forEach(function (l) { drawCenteredText(ctx, l, W / 2, y, 2); y += 50; });
+    var y = 702;
+    roleLines.forEach(function (l) { drawCenteredText(ctx, l, W / 2, y, 2); y += 46; });
 
     // 描述
-    ctx.fillStyle = dim; ctx.font = "30px " + serif;
-    y += 18;
-    wrapLines(ctx, m.desc, W - 260).slice(0, 5).forEach(function (l) {
+    ctx.fillStyle = dim; ctx.font = "29px " + serif;
+    y += 12;
+    wrapLines(ctx, m.desc, W - 240).slice(0, 4).forEach(function (l) {
       drawCenteredText(ctx, l, W / 2, y, 1);
-      y += 50;
+      y += 45;
     });
 
     // 四维度倾向条（含百分比）
-    y += 28;
+    y += 20;
     dims.forEach(function (d) {
       var l = scores[d.left] || 0, r = scores[d.right] || 0, total = l + r;
       if (total <= 0) return;
       var pctR = Math.round((r / total) * 100);
       var pctL = 100 - pctR;
       var x0 = 310, x1 = W - 310;
-      ctx.font = "bold 28px " + latin;
+      ctx.font = "bold 27px " + latin;
       ctx.textAlign = "right";
       ctx.fillStyle = l > r ? gold : dim;
-      ctx.fillText(d.left + " " + pctL + "%", x0 - 24, y + 11);
+      ctx.fillText(d.left + " " + pctL + "%", x0 - 24, y + 10);
       ctx.textAlign = "left";
       ctx.fillStyle = r > l ? gold : dim;
-      ctx.fillText(pctR + "% " + d.right, x1 + 24, y + 11);
+      ctx.fillText(pctR + "% " + d.right, x1 + 24, y + 10);
       ctx.fillStyle = "rgba(255,255,255,0.16)";
       ctx.fillRect(x0, y, x1 - x0, 8);
       ctx.fillStyle = gold;
@@ -177,20 +179,73 @@
         var w = (x1 - x0) * (pctR / 100);
         ctx.fillRect(x1 - w, y, w, 8);
       }
-      y += 56;
+      y += 48;
     });
 
     // 本局专属晚宴轨迹印记（个性化签条）
     if (footprints.length > 0) {
-      y += 18;
+      y += 12;
       var tagText = "今夜轨迹 · " + footprints.join("  |  ");
-      ctx.font = "24px " + serif;
+      ctx.font = "23px " + serif;
       ctx.fillStyle = gold;
       drawCenteredText(ctx, tagText, W / 2, y, 2);
     }
 
+    // 潜意识行为侧写：维恩先生手写暗批（表里双生人格）
+    if (opts.shadow && opts.shadow.tag && opts.shadow.note) {
+      y += 32;
+      var shadowLine = "✒ 维恩暗批 〔" + opts.shadow.tag + "〕 " + opts.shadow.note;
+      ctx.font = "italic 20px " + serif;
+      ctx.fillStyle = dim;
+      var sLines = wrapLines(ctx, shadowLine, W - 220).slice(0, 2);
+      sLines.forEach(function (sl) {
+        drawCenteredText(ctx, sl, W / 2, y, 1);
+        y += 28;
+      });
+    }
+
+    // 双人同席合盘区块（当存在同席友人时绘制）
+    if (bond && bond.inviter && bond.player) {
+      var boxTop = y + 18;
+      var boxH = 232;
+      var boxX = 120, boxW = W - 240;
+      ctx.save();
+      ctx.fillStyle = "rgba(201, 169, 106, 0.06)";
+      ctx.fillRect(boxX, boxTop, boxW, boxH);
+      ctx.strokeStyle = goldSoft;
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(boxX, boxTop, boxW, boxH);
+
+      var pairLine = "双人同席合盘  ·  [" + bond.inviter.code + " " + bond.inviter.name + " · " + bond.inviter.endingShortTitle + "]   ✦   [" +
+                     bond.player.code + " " + bond.player.name + " · " + bond.player.endingShortTitle + "]";
+      ctx.font = "23px " + serif;
+      ctx.fillStyle = dim;
+      drawCenteredText(ctx, pairLine, W / 2, boxTop + 42, 1);
+
+      var titleLine = "「" + bond.title + "」 · " + bond.resonance;
+      ctx.font = "31px " + serif;
+      ctx.fillStyle = gold;
+      drawCenteredText(ctx, titleLine, W / 2, boxTop + 90, 3);
+
+      ctx.font = "23px " + serif;
+      ctx.fillStyle = ink;
+      var by = boxTop + 136;
+      wrapLines(ctx, bond.desc, boxW - 72).slice(0, 2).forEach(function (l) {
+        drawCenteredText(ctx, l, W / 2, by, 1);
+        by += 34;
+      });
+      if (bond.routeTitle) {
+        ctx.font = "21px " + serif;
+        ctx.fillStyle = goldSoft;
+        var routeShort = "【" + bond.routeTitle + "】" + bond.routeDesc;
+        var rLine = wrapLines(ctx, routeShort, boxW - 72)[0] || "";
+        drawCenteredText(ctx, rLine, W / 2, boxTop + 210, 1);
+      }
+      ctx.restore();
+    }
+
     // 底部分隔细线 + 左侧传播文案 + 右侧矢量二维码
-    var footerTop = H - 268;
+    var footerTop = H - 248;
     ctx.strokeStyle = "rgba(201, 169, 106, 0.28)";
     ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(120, footerTop); ctx.lineTo(W - 120, footerTop); ctx.stroke();
@@ -199,10 +254,13 @@
     ctx.fillStyle = gold; ctx.font = "30px " + serif;
     ctx.fillText("来迷雾庄园，赴一场十六型人格晚宴", 120, footerTop + 62);
     ctx.fillStyle = ink; ctx.font = "26px " + latin;
-    ctx.fillText("https://" + SHARE_URL, 120, footerTop + 108);
+    var urlLine = inviteSeed
+      ? ("https://" + SHARE_URL + "/#invite=" + inviteSeed)
+      : ("https://" + SHARE_URL);
+    ctx.fillText(urlLine, 120, footerTop + 108);
     ctx.fillStyle = dim; ctx.font = "22px " + serif;
     var subFooter = collectionSummary
-      ? (collectionSummary + " · 扫码或长按识别赴宴")
+      ? (collectionSummary + " · 扫码或持请柬暗码同席")
       : "趣味互动叙事 · 扫码或长按识别赴宴";
     ctx.fillText(subFooter, 120, footerTop + 150);
 
@@ -214,13 +272,17 @@
 
   function saveCardImage(opts, cardBtn) {
     var code = opts.mbti.code;
-    var filename = "迷雾庄园-" + code + ".png";
+    var hasBond = !!(opts.bond && opts.bond.inviter);
+    var filename = hasBond
+      ? ("迷雾庄园-" + opts.bond.inviter.code + "x" + code + "-同席合盘.png")
+      : ("迷雾庄园-" + code + ".png");
+    var defaultBtnLabel = hasBond ? "保存双人合盘图" : "保存名片图";
     cardBtn.disabled = true;
     cardBtn.textContent = "生成中…";
     var done = function (msg) {
       cardBtn.textContent = msg;
       cardBtn.disabled = false;
-      setTimeout(function () { cardBtn.textContent = "保存名片图"; }, 1800);
+      setTimeout(function () { cardBtn.textContent = defaultBtnLabel; }, 1800);
     };
     renderCardCanvas(opts).toBlob(function (blob) {
       if (!blob) { done("生成失败"); return; }
@@ -240,7 +302,7 @@
           navigator.share({ files: [file], title: "迷雾庄园 · " + code })
             .then(function () { done("已分享"); })
             .catch(function (err) {
-              if (err && err.name === "AbortError") { done("保存名片图"); return; }
+              if (err && err.name === "AbortError") { done(defaultBtnLabel); return; }
               download();
             });
           return;

@@ -81,6 +81,30 @@
         return;
       }
 
+      if (kind === "gate") {
+        // 推开庄园大门：低沉铁枢摩擦声 + 门厅远处低音迎客钟共鸣
+        playTone(ac, 110, "triangle", t, 0.55, 0.048, 68);
+        playTone(ac, 220, "sine", t + 0.05, 0.75, 0.032, 218);
+        playTone(ac, 329.63, "sine", t + 0.12, 0.85, 0.024);
+        var gSrc = ac.createBufferSource();
+        gSrc.buffer = getNoiseBuffer(ac);
+        var gLp = ac.createBiquadFilter();
+        gLp.type = "bandpass";
+        gLp.frequency.setValueAtTime(320, t);
+        gLp.frequency.exponentialRampToValueAtTime(160, t + 0.48);
+        gLp.Q.value = 2.2;
+        var gGain = ac.createGain();
+        var gVol = Math.max(0.0002, 0.036 * masterVolume);
+        gGain.gain.setValueAtTime(0.0001, t);
+        gGain.gain.linearRampToValueAtTime(gVol, t + 0.09);
+        gGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+        gSrc.connect(gLp);
+        gLp.connect(gGain);
+        gGain.connect(ac.destination);
+        gSrc.start(t, 0.4, 0.52);
+        return;
+      }
+
       if (kind === "chime") {
         // 拜访名片浮现：纯五度双音钟鸣 (E5 + B5)
         playTone(ac, 659.25, "sine", t, 0.42, 0.042);
@@ -123,6 +147,70 @@
         var notes = [440, 554.37, 659.25, 880];
         notes.forEach(function (f, idx) {
           playTone(ac, f, "sine", t + idx * 0.065, 0.72, 0.036 - idx * 0.005);
+        });
+        return;
+      }
+
+      if (kind === "sizzle") {
+        // 烛火炙烤羊皮纸显影：温热火苗轻炙声 + 柠檬汁焦褐微响
+        var szSrc = ac.createBufferSource();
+        szSrc.buffer = getNoiseBuffer(ac);
+        var szBp = ac.createBiquadFilter();
+        szBp.type = "bandpass";
+        szBp.frequency.setValueAtTime(1950, t);
+        szBp.frequency.exponentialRampToValueAtTime(920, t + 0.24);
+        szBp.Q.value = 1.6;
+        var szGain = ac.createGain();
+        var szVol = Math.max(0.0002, 0.032 * masterVolume);
+        szGain.gain.setValueAtTime(0.0001, t);
+        szGain.gain.linearRampToValueAtTime(szVol, t + 0.04);
+        szGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.26);
+        szSrc.connect(szBp);
+        szBp.connect(szGain);
+        szGain.connect(ac.destination);
+        szSrc.start(t, Math.random() * 0.8, 0.28);
+        playTone(ac, 523.25, "sine", t + 0.03, 0.28, 0.024, 659.25);
+        return;
+      }
+
+      if (kind === "blow") {
+        // 吹熄蜡烛：柔和呼气风声 + 烛芯熄灭轻响 + 1.4s 后幽蓝镜渊空灵泛音
+        var blSrc = ac.createBufferSource();
+        blSrc.buffer = getNoiseBuffer(ac);
+        var blLp = ac.createBiquadFilter();
+        blLp.type = "bandpass";
+        blLp.frequency.setValueAtTime(480, t);
+        blLp.frequency.exponentialRampToValueAtTime(170, t + 0.55);
+        blLp.Q.value = 1.1;
+        var blGain = ac.createGain();
+        var blVol = Math.max(0.0002, 0.055 * masterVolume);
+        blGain.gain.setValueAtTime(0.0001, t);
+        blGain.gain.linearRampToValueAtTime(blVol, t + 0.08);
+        blGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.58);
+        blSrc.connect(blLp);
+        blLp.connect(blGain);
+        blGain.connect(ac.destination);
+        blSrc.start(t, 0.15, 0.6);
+        // 镜渊浮现时的幽蓝泛音和弦
+        playTone(ac, 587.33, "sine", t + 1.35, 0.9, 0.028);
+        playTone(ac, 880, "sine", t + 1.48, 1.05, 0.022);
+        return;
+      }
+
+      if (kind === "musicbox") {
+        // 1887 八音盒旋律：清亮高音正弦 + 泛音梳齿拔奏（A 小调维多利亚圆舞曲动机）
+        var melody = [
+          { f: 880.00, d: 0.00, dur: 0.65 }, // A5
+          { f: 1046.50, d: 0.34, dur: 0.60 }, // C6
+          { f: 1318.51, d: 0.68, dur: 0.72 }, // E6
+          { f: 1174.66, d: 1.06, dur: 0.65 }, // D6
+          { f: 1046.50, d: 1.42, dur: 0.65 }, // C6
+          { f: 987.77,  d: 1.78, dur: 0.75 }, // B5
+          { f: 880.00,  d: 2.18, dur: 1.15 }  // A5
+        ];
+        melody.forEach(function (n) {
+          playTone(ac, n.f, "sine", t + n.d, n.dur, 0.036);
+          playTone(ac, n.f * 2, "triangle", t + n.d, n.dur * 0.45, 0.012);
         });
         return;
       }
