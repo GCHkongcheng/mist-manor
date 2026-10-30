@@ -1,8 +1,6 @@
 /* ============================================================
-   迷雾庄园 · 游戏逻辑（完整功能版）
-   设置(打字速度/音效/Auto) / 存档续玩 / 撤销栈 / 键盘操作 /
-   历史回看 / WebAudio 音效 / 双好感度 / 隐藏选项 /
-   结局图鉴 / 交互隐喻 / 打字机 / MBTI 计算 / 复制分享
+   迷雾庄园 · 游戏主控逻辑
+   依赖：data.js / engine.js / audio.js / card.js
    ============================================================ */
 
 (function () {
@@ -15,12 +13,16 @@
   const resultScreen = $("result-screen");
   const startBtn = $("start-btn");
   const continueBtn = $("continue-btn");
+  const titleRainBtn = $("title-rain-btn");
+  const titleHint = $("title-hint");
   const againBtn = $("again-btn");
   const shareBtn = $("share-btn");
+  const cardBtn = $("card-btn");
   const chapterEl = $("chapter");
   const storyEl = $("story-text");
   const optionsEl = $("options");
   const progressEl = $("progress");
+  const progressLabelEl = $("progress-label");
   const endingTitleEl = $("ending-title");
   const endingTextEl = $("ending-text");
   const mbtiCode = $("mbti-code");
@@ -31,6 +33,7 @@
 
   // 工具条 / 面板
   const toolbar = $("toolbar");
+  const toolbarGuide = $("toolbar-guide");
   const autoBtn = $("auto-btn");
   const historyBtn = $("history-btn");
   const settingsBtn = $("settings-btn");
@@ -38,10 +41,16 @@
   const historyPanel = $("history-panel");
   const historyList = $("history-list");
   const speedSeg = $("speed-seg");
+  const fontSeg = $("font-seg");
+  const contrastToggle = $("contrast-toggle");
   const sfxToggle = $("sfx-toggle");
   const rainToggle = $("rain-toggle");
+  const volumeRange = $("volume-range");
   const autoToggle = $("auto-toggle");
   const skipToggle = $("skip-toggle");
+  const saveSlotsEl = $("save-slots");
+  const exportBtn = $("export-btn");
+  const importBtn = $("import-btn");
   const settingsClose = $("settings-close");
   const historyClose = $("history-close");
   const quitBtn = $("quit-btn");
@@ -49,17 +58,21 @@
   const undoBtn = $("undo-btn");
   const resetGalleryBtn = $("reset-gallery-btn");
 
-  // ---------- 节点索引 ----------
+  // ---------- 节点索引与元数据推导 ----------
   const NODES = {};
   STORY.forEach(function (n) { NODES[n.id] = n; });
+  const ALT_NODE_IDS = STORY.filter(function (n) { return n.altText && n.altOptions; }).map(function (n) { return n.id; });
   const TOTAL_CHOICES = 12;
 
   // 存储键
-  const K_GALLERY = "mist_manor_gallery";
-  const K_CARDS = "mist_manor_cards";
+  const K_GALLERY  = "mist_manor_gallery";
+  const K_CARDS    = "mist_manor_cards";
   const K_SETTINGS = "mist_manor_settings";
-  const K_SAVE = "mist_manor_save";
-  const K_READ = "mist_manor_read";   // 已读节点（快进用）
+  const K_SAVE     = "mist_manor_save";
+  const K_SLOTS    = "mist_manor_slots";
+  const K_READ     = "mist_manor_read";
+  const K_GUIDE    = "mist_manor_guide_seen";
+  const K_RUNS     = "mist_manor_runs";
 
   // ---------- 设置 ----------
   const SPEEDS = {
@@ -68,12 +81,31 @@
     fast:    { base: 18, punct: 60 },
     instant: { base: 0,  punct: 0 }
   };
-  let settings = { speed: "normal", sfx: false, auto: false, rain: false, skipRead: false };
+  const FONTS = { normal: true, large: true, xlarge: true };
+  let settings = {
+    speed: "normal",
+    font: "normal",
+    contrast: false,
+    sfx: false,
+    rain: false,
+    volume: 0.8,
+    auto: false,
+    skipRead: false
+  };
 
   function loadSettings() {
     try {
       const s = JSON.parse(localStorage.getItem(K_SETTINGS));
-      if (s && SPEEDS[s.speed]) settings = Object.assign(settings, s);
+      if (s && typeof s === "object") {
+        if (SPEEDS[s.speed]) settings.speed = s.speed;
+        if (FONTS[s.font]) settings.font = s.font;
+        if (typeof s.contrast === "boolean") settings.contrast = s.contrast;
+        if (typeof s.sfx === "boolean") settings.sfx = s.sfx;
+        if (typeof s.rain === "boolean") settings.rain = s.rain;
+        if (typeof s.volume === "number") settings.volume = Math.max(0, Math.min(1, s.volume));
+        if (typeof s.auto === "boolean") settings.auto = s.auto;
+        if (typeof s.skipRead === "boolean") settings.skipRead = s.skipRead;
+      }
     } catch (e) {}
   }
   function saveSettings() {
@@ -81,129 +113,71 @@
   }
 
   function applySettingsUI() {
-    // 速度分段
     speedSeg.querySelectorAll("button").forEach(function (b) {
       b.classList.toggle("active", b.dataset.speed === settings.speed);
     });
-    // 开关
+    if (fontSeg) {
+      fontSeg.querySelectorAll("button").forEach(function (b) {
+        b.classList.toggle("active", b.dataset.font === settings.font);
+      });
+    }
+    document.body.dataset.font = settings.font;
+    document.body.classList.toggle("high-contrast", !!settings.contrast);
+    if (contrastToggle) {
+      contrastToggle.setAttribute("aria-pressed", settings.contrast ? "true" : "false");
+      contrastToggle.classList.toggle("on", !!settings.contrast);
+    }
     sfxToggle.setAttribute("aria-pressed", settings.sfx ? "true" : "false");
     sfxToggle.classList.toggle("on", settings.sfx);
     rainToggle.setAttribute("aria-pressed", settings.rain ? "true" : "false");
     rainToggle.classList.toggle("on", settings.rain);
+    if (volumeRange) volumeRange.value = String(Math.round(settings.volume * 100));
     autoToggle.setAttribute("aria-pressed", settings.auto ? "true" : "false");
     autoToggle.classList.toggle("on", settings.auto);
     skipToggle.setAttribute("aria-pressed", settings.skipRead ? "true" : "false");
     skipToggle.classList.toggle("on", settings.skipRead);
-    // 工具条 Auto 按钮
-    autoBtn.textContent = settings.auto ? "⏸" : "▶";
+
     autoBtn.classList.toggle("active", settings.auto);
-    // 雨声跟随开关
-    setRain(settings.rain);
-  }
+    autoBtn.setAttribute("aria-pressed", settings.auto ? "true" : "false");
 
-  // ---------- 音效（WebAudio 合成，零资源文件） ----------
-  let audioCtx = null;
-  function playSfx(kind) {
-    if (!settings.sfx) return;
-    try {
-      if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const t = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      let freq = 660, dur = 0.06, vol = 0.03, type = "sine";
-      if (kind === "click")  { freq = 740; dur = 0.05; }
-      if (kind === "chime")  { freq = 880; dur = 0.35; vol = 0.045; }
-      if (kind === "shatter"){ freq = 190; dur = 0.22; vol = 0.06; type = "triangle"; }
-      if (kind === "reveal") { freq = 523; dur = 0.6;  vol = 0.05; }
-      osc.type = type;
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(vol, t);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      osc.start(t);
-      osc.stop(t + dur + 0.05);
-    } catch (e) {}
-  }
-
-  // ---------- 雨声氛围（WebAudio 白噪声 + 低通滤波，零资源文件） ----------
-  let rainCtx = null, rainGain = null, rainNodes = null, rainFadeTimer = null;
-
-  function buildRain() {
-    // 惰性创建独立的 AudioContext，与音效互不影响
-    rainCtx = new (window.AudioContext || window.webkitAudioContext)();
-    // 2 秒循环白噪声缓冲
-    const len = rainCtx.sampleRate * 2;
-    const buf = rainCtx.createBuffer(1, len, rainCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
-    const src = rainCtx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    // 低通滤波成"雨落在屋顶"的闷响，再轻微降采样质感
-    const lp = rainCtx.createBiquadFilter();
-    lp.type = "lowpass";
-    lp.frequency.value = 650;
-    lp.Q.value = 0.4;
-    // 带通补一层"沙沙"细节
-    const bp = rainCtx.createBiquadFilter();
-    bp.type = "bandpass";
-    bp.frequency.value = 2400;
-    bp.Q.value = 0.3;
-    const bpGain = rainCtx.createGain();
-    bpGain.gain.value = 0.25;
-    rainGain = rainCtx.createGain();
-    rainGain.gain.value = 0;
-    src.connect(lp);
-    src.connect(bp);
-    bp.connect(bpGain);
-    bpGain.connect(rainGain);
-    lp.connect(rainGain);
-    rainGain.connect(rainCtx.destination);
-    src.start();
-    rainNodes = src;
-  }
-
-  function setRain(on) {
-    try {
-      if (on) {
-        if (!rainCtx) buildRain();
-        if (rainCtx.state === "suspended") rainCtx.resume();
-        // 淡入
-        if (rainFadeTimer) { clearTimeout(rainFadeTimer); rainFadeTimer = null; }
-        const t = rainCtx.currentTime;
-        rainGain.gain.cancelScheduledValues(t);
-        rainGain.gain.setValueAtTime(rainGain.gain.value, t);
-        rainGain.gain.linearRampToValueAtTime(0.045, t + 2);
-      } else if (rainCtx && rainGain) {
-        // 淡出后挂起（省电）
-        const t = rainCtx.currentTime;
-        rainGain.gain.cancelScheduledValues(t);
-        rainGain.gain.setValueAtTime(rainGain.gain.value, t);
-        rainGain.gain.linearRampToValueAtTime(0.0001, t + 1.5);
-        rainFadeTimer = setTimeout(function () {
-          rainFadeTimer = null;
-          if (rainCtx && rainCtx.state === "running" && !settings.rain) rainCtx.suspend();
-        }, 1600);
-      }
-    } catch (e) {}
+    if (titleRainBtn) {
+      titleRainBtn.classList.toggle("on", settings.rain);
+      titleRainBtn.setAttribute("aria-pressed", settings.rain ? "true" : "false");
+      titleRainBtn.textContent = settings.rain ? "夜雨声：开（戴耳机更佳）" : "夜雨声：关（戴耳机更佳）";
+    }
+    AudioEngine.setConfig({ sfx: settings.sfx, rain: settings.rain, volume: settings.volume });
   }
 
   // ---------- 状态 ----------
   let currentNodeId = "prologue";
   let choiceIndex = 0;
-  let scores = { E:0, I:0, S:0, N:0, T:0, F:0, J:0, P:0 };
+  let scores = Engine.newScores();
   let flags = {};
-  let affinity = { master: 0, shen: 0 };
+  let affinity = Engine.newAffinity();
+  let variantMap = {};       // 本局公共线 9 题的平行题库掩码 { ch1: true/false, ... }
   let currentEnding = null;
   let typingTimer = null;
   let isTyping = false;
-  let autoTimer = null;      // Auto 模式计时器
-  let nextTimer = null;      // 反馈→跳转计时器（撤销时需取消，防止竞态）
-  let history = [];          // {chapter, text, chosen}
-
-  // 撤销栈：快照当前完整状态（选择前压栈）
+  let autoTimer = null;
+  let nextTimer = null;
+  let log = [];              // 历史记录 {chapter, text, chosen}
   let undoStack = [];
+
+  // 生成平行题库掩码：首局全用第 1 套；第 2 局全用第 2 套；第 3 局起每题随机抽一套
+  function buildVariantMap() {
+    let runs = 0;
+    try { runs = parseInt(localStorage.getItem(K_RUNS) || "0", 10) || 0; } catch (e) {}
+    const unlockedCount = Object.keys(getGallery()).length;
+    const effectiveRun = Math.max(runs, unlockedCount);
+    try { localStorage.setItem(K_RUNS, String(effectiveRun + 1)); } catch (e) {}
+    const map = {};
+    ALT_NODE_IDS.forEach(function (id, idx) {
+      if (effectiveRun === 0) map[id] = false;
+      else if (effectiveRun === 1) map[id] = true;
+      else map[id] = (Math.random() < 0.5) ? true : (idx % 2 === (effectiveRun % 2));
+    });
+    return map;
+  }
 
   function snapshot() {
     return {
@@ -212,7 +186,8 @@
       scores: Object.assign({}, scores),
       flags: Object.assign({}, flags),
       affinity: Object.assign({}, affinity),
-      history: history.slice()
+      variantMap: Object.assign({}, variantMap),
+      history: log.slice()
     };
   }
   function restore(snap) {
@@ -221,41 +196,125 @@
     scores = Object.assign({}, snap.scores);
     flags = Object.assign({}, snap.flags);
     affinity = Object.assign({}, snap.affinity);
-    history = snap.history.slice();
+    variantMap = Object.assign({}, snap.variantMap || {});
+    log = snap.history.slice();
   }
 
   // ---------- 存档 ----------
+  const SAVE_VERSION = 2;
+  const SAVE_UNDO_MAX = 5;
   function saveGame() {
-    // 仅在未到结局时存档
     if (currentEnding) {
       try { localStorage.removeItem(K_SAVE); } catch (e) {}
       return;
     }
     const data = {
+      version: SAVE_VERSION,
       nodeId: currentNodeId,
       choiceIndex: choiceIndex,
       scores: scores,
       flags: flags,
       affinity: affinity,
-      history: history,
-      undoStack: undoStack.slice(),
+      variantMap: variantMap,
+      history: log,
+      undoStack: undoStack.slice(-SAVE_UNDO_MAX),
       savedAt: Date.now()
     };
     try { localStorage.setItem(K_SAVE, JSON.stringify(data)); } catch (e) {}
     updateContinueBtn();
   }
+  function validSave(s) {
+    if (!s || typeof s !== "object" || s.version !== SAVE_VERSION) return false;
+    if (!NODES[s.nodeId] || typeof s.savedAt !== "number") return false;
+    if (typeof s.choiceIndex !== "number") return false;
+    if (!s.scores || !Object.keys(Engine.newScores()).every(function (k) { return typeof s.scores[k] === "number"; })) return false;
+    if (!s.affinity || typeof s.affinity.master !== "number" || typeof s.affinity.shen !== "number") return false;
+    if (!s.flags || typeof s.flags !== "object") return false;
+    if (!Array.isArray(s.history)) return false;
+    if (s.undoStack !== undefined && !Array.isArray(s.undoStack)) return false;
+    return true;
+  }
   function loadSave() {
-    try { return JSON.parse(localStorage.getItem(K_SAVE)); } catch (e) { return null; }
+    let s = null;
+    try { s = JSON.parse(localStorage.getItem(K_SAVE)); } catch (e) { s = null; }
+    if (s === null) return null;
+    if (validSave(s)) return s;
+    try { localStorage.removeItem(K_SAVE); } catch (e) {}
+    return null;
+  }
+  function formatElapsed(savedAt) {
+    const mins = Math.max(1, Math.round((Date.now() - savedAt) / 60000));
+    if (mins < 60) return mins + " 分钟前";
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return hours + " 小时前";
+    return Math.round(hours / 24) + " 天前";
   }
   function updateContinueBtn() {
     const s = loadSave();
-    if (s && NODES[s.nodeId]) {
+    if (s) {
       continueBtn.classList.remove("hidden");
-      const mins = Math.max(1, Math.round((Date.now() - s.savedAt) / 60000));
-      continueBtn.textContent = "▸ 继续上次的晚宴（" + (mins < 60 ? mins + " 分钟前" : "更早") + "）";
+      const ch = NODES[s.nodeId] && NODES[s.nodeId].chapter ? NODES[s.nodeId].chapter + " · " : "";
+      continueBtn.textContent = "继续上次的晚宴（" + ch + formatElapsed(s.savedAt) + "）";
     } else {
       continueBtn.classList.add("hidden");
     }
+  }
+
+  // ---------- 三槽位手动存档 ----------
+  function getSlots() {
+    try {
+      const arr = JSON.parse(localStorage.getItem(K_SLOTS));
+      return Array.isArray(arr) ? [arr[0] || null, arr[1] || null, arr[2] || null] : [null, null, null];
+    } catch (e) { return [null, null, null]; }
+  }
+  function renderSlots() {
+    if (!saveSlotsEl) return;
+    const slots = getSlots();
+    const names = ["槽一", "槽二", "槽三"];
+    const inGame = !gameScreen.classList.contains("hidden") && !currentEnding;
+    saveSlotsEl.querySelectorAll(".slot-item").forEach(function (row) {
+      const idx = parseInt(row.dataset.slot, 10);
+      const s = validSave(slots[idx]) ? slots[idx] : null;
+      const nameEl = row.querySelector(".slot-name");
+      const saveBtn = row.querySelector(".slot-save");
+      const loadBtn = row.querySelector(".slot-load");
+      if (s) {
+        const ch = (NODES[s.nodeId] && NODES[s.nodeId].chapter) ? NODES[s.nodeId].chapter : s.nodeId;
+        nameEl.textContent = names[idx] + " · " + ch;
+        loadBtn.classList.remove("hidden");
+      } else {
+        nameEl.textContent = names[idx] + " · 空";
+        loadBtn.classList.add("hidden");
+      }
+      saveBtn.disabled = !inGame;
+    });
+  }
+  function saveToSlot(idx) {
+    if (currentEnding || gameScreen.classList.contains("hidden")) return;
+    const slots = getSlots();
+    slots[idx] = {
+      version: SAVE_VERSION,
+      nodeId: currentNodeId,
+      choiceIndex: choiceIndex,
+      scores: Object.assign({}, scores),
+      flags: Object.assign({}, flags),
+      affinity: Object.assign({}, affinity),
+      variantMap: Object.assign({}, variantMap),
+      history: log.slice(),
+      undoStack: undoStack.slice(-SAVE_UNDO_MAX),
+      savedAt: Date.now()
+    };
+    try { localStorage.setItem(K_SLOTS, JSON.stringify(slots)); } catch (e) {}
+    AudioEngine.playSfx("click");
+    renderSlots();
+  }
+  function loadFromSlot(idx) {
+    const slots = getSlots();
+    const s = validSave(slots[idx]) ? slots[idx] : null;
+    if (!s) return;
+    try { localStorage.setItem(K_SAVE, JSON.stringify(s)); } catch (e) {}
+    AudioEngine.playSfx("click");
+    startGame(false);
   }
 
   // ---------- 结局图鉴 ----------
@@ -270,6 +329,12 @@
       try { localStorage.setItem(K_GALLERY, JSON.stringify(g)); } catch (e) {}
     }
   }
+  const ENDING_HINTS = [
+    "结局一 · 书房：第六章随主人步入书房",
+    "结局二 · 门后：第六章循长廊尽头蓝光探去",
+    "结局三 · 过客：第六章道过晚安回房歇息",
+    "结局四 · 归还（隐藏）：晚宴中对主人与沈先生均多留一份体谅与分寸，第六章将浮现第四个选择"
+  ];
   function renderGallery() {
     const g = getGallery();
     const ALL = ["endingA", "endingB", "endingC", "endingD"];
@@ -280,18 +345,23 @@
       ALL.forEach(function (eid, idx) {
         const slot = document.createElement("span");
         slot.className = "gallery-slot" + (g[eid] ? " unlocked" : "");
-        slot.title = g[eid] ? NODES[eid].endingTitle : "结局 " + (idx + 1) + " · 未解锁";
+        slot.title = g[eid] ? NODES[eid].endingTitle : ENDING_HINTS[idx];
         slot.textContent = g[eid] ? ["真相", "门后", "过客", "归还"][idx] : "?";
         el.appendChild(slot);
       });
     });
-    // 图鉴有进度时显示重置按钮
     const got = Object.keys(g).length;
-    resetGalleryBtn.classList.toggle("hidden", got === 0);
+    if (titleHint) {
+      if (got > 0 && got < 4) {
+        titleHint.textContent = "已解锁 " + got + "/4 个结局 · 新一局将启用平行题库，悬停图鉴可看线索";
+      } else if (got === 4) {
+        titleHint.textContent = "四条结局已悉数走遍 · 庄园的门永远为你敞开";
+      }
+    }
+    resetGalleryBtn.classList.toggle("hidden", got === 0 && Object.keys(getCards()).length === 0);
   }
 
   // ---------- 16 型名片夹 ----------
-  // 全部 16 个 MBTI 代号，按传统四分组排列
   const ALL_TYPES = [
     "INTJ","INTP","ENTJ","ENTP",
     "INFJ","INFP","ENFJ","ENFP",
@@ -315,7 +385,6 @@
     ["cards-title", "cards-result"].forEach(function (id) {
       const el = $(id);
       if (!el) return;
-      // 标题屏：尚未集到任何名片时也展示空名片夹（让收集目标可见）
       el.innerHTML = "";
       ALL_TYPES.forEach(function (code) {
         const slot = document.createElement("span");
@@ -334,18 +403,18 @@
         label.textContent = "名片夹 · 已集 " + got + "/16 型";
       }
     });
-    // 联动图鉴重置按钮（两套收集有任一进度即可见）
     const g = getGallery();
     resetGalleryBtn.classList.toggle("hidden", Object.keys(g).length === 0 && got === 0);
   }
 
-  // ---------- 交互隐喻 ----------
+  // ---------- 场景光照与交互隐喻 ----------
   function applyNodeFx(node) {
     appEl.classList.remove("fx-shatter");
     document.body.classList.remove("tint-blue", "tint-gold");
+    document.body.dataset.lighting = node.lighting || "foyer";
     if (node.effect === "shatter") {
       appEl.classList.add("fx-shatter");
-      playSfx("shatter");
+      AudioEngine.playSfx("shatter");
       setTimeout(function () { appEl.classList.remove("fx-shatter"); }, 700);
     }
     if (node.tint === "blue") document.body.classList.add("tint-blue");
@@ -353,42 +422,49 @@
   }
 
   // ---------- 已读节点记录（快进用） ----------
-  const READ_MAX = 200; // 防止无限增长，保留最近的节点 id
+  const READ_MAX = 200;
   let readSet = null;
+  function readKey(nodeId) {
+    return variantMap[nodeId] ? (nodeId + ":alt") : nodeId;
+  }
   function markRead(nodeId) {
     try {
-      if (readSet === null) {
-        readSet = JSON.parse(localStorage.getItem(K_READ)) || [];
-      }
-      if (readSet.indexOf(nodeId) < 0) {
-        readSet.push(nodeId);
+      if (readSet === null) readSet = JSON.parse(localStorage.getItem(K_READ)) || [];
+      const k = readKey(nodeId);
+      if (readSet.indexOf(k) < 0) {
+        readSet.push(k);
         if (readSet.length > READ_MAX) readSet = readSet.slice(-READ_MAX);
         localStorage.setItem(K_READ, JSON.stringify(readSet));
       }
-    } catch (e) {
-      readSet = readSet || [];
-    }
+    } catch (e) { readSet = readSet || []; }
   }
   function isRead(nodeId) {
     try {
-      if (readSet === null) {
-        readSet = JSON.parse(localStorage.getItem(K_READ)) || [];
-      }
+      if (readSet === null) readSet = JSON.parse(localStorage.getItem(K_READ)) || [];
     } catch (e) { readSet = []; }
-    return readSet.indexOf(nodeId) >= 0;
+    return readSet.indexOf(readKey(nodeId)) >= 0;
   }
 
-  // ---------- 打字机 ----------
-  function typeText(text, target, done) {
+  // ---------- 打字机（版面高度预留） ----------
+  function typeText(text, target, done, alreadyRead) {
     clearTyping();
     isTyping = true;
     target.classList.add("typing");
-    target.textContent = "";
+    target.setAttribute("aria-busy", "true");
     const chars = Array.from(text);
     let i = 0;
     const spd = SPEEDS[settings.speed];
-    // 已读快进：该节点文本此前看过（且非"立即"档，立即档本就直出）——直接呈现
-    const skip = settings.skipRead && arguments.length > 3 && arguments[3] && spd.base > 0;
+    const shownEl = document.createElement("span");
+    shownEl.className = "typing-shown";
+    const restEl = document.createElement("span");
+    restEl.style.visibility = "hidden";
+    restEl.setAttribute("aria-hidden", "true");
+    restEl.textContent = text;
+    target.textContent = "";
+    target.appendChild(shownEl);
+    target.appendChild(restEl);
+
+    const skip = (settings.skipRead && alreadyRead && spd.base > 0) || spd.base === 0;
     if (skip) {
       target.textContent = text;
       finishTyping(target);
@@ -402,21 +478,14 @@
         if (done) done();
         return;
       }
-      target.textContent += chars[i];
       const ch = chars[i];
       i++;
-      if (spd.base === 0) {
-        // 立即模式：整段直接呈现
-        target.textContent = text;
-        finishTyping(target);
-        if (done) done();
-        return;
-      }
+      shownEl.textContent += ch;
+      restEl.textContent = chars.slice(i).join("");
       const delay = /[。，；！？、\n」』——…]/.test(ch) ? spd.punct : spd.base;
       typingTimer = setTimeout(step, delay);
     }
 
-    // 点击文本跳过打字
     target.onclick = function () {
       if (!isTyping) return;
       clearTyping();
@@ -436,18 +505,16 @@
   function finishTyping(target) {
     isTyping = false;
     target.classList.remove("typing");
+    target.setAttribute("aria-busy", "false");
     target.onclick = null;
   }
 
-  // ---------- Auto 模式 ----------
   function clearAuto() {
     if (autoTimer) { clearTimeout(autoTimer); autoTimer = null; }
   }
-  // 取消"反馈→跳转"的待触发跳转（撤销/重置时调用，防止竞态）
   function clearNext() {
     if (nextTimer) { clearTimeout(nextTimer); nextTimer = null; }
   }
-  // 打字完成后延迟自动继续（仅对叙事节点与反馈后跳转生效）
   function autoContinue(delay, fn) {
     if (!settings.auto) return;
     clearAuto();
@@ -464,46 +531,87 @@
       else if (i === choiceIndex) dot.classList.add("current");
       progressEl.appendChild(dot);
     }
+    progressEl.setAttribute("aria-valuenow", String(choiceIndex));
+    if (progressLabelEl) {
+      const stepNum = Math.min(TOTAL_CHOICES, choiceIndex + 1);
+      progressLabelEl.textContent = choiceIndex >= TOTAL_CHOICES
+        ? ("已完成 " + TOTAL_CHOICES + " / " + TOTAL_CHOICES + " 问")
+        : ("第 " + stepNum + " / " + TOTAL_CHOICES + " 问");
+    }
   }
 
-  // ---------- 历史记录 ----------
+  // ---------- 历史记录（支持点击「回溯至此」直接跳回过去节点） ----------
   function pushHistory(entry) {
-    history.push(entry);
-    if (history.length > 60) history.shift(); // 防止过长
+    log.push(entry);
+    if (log.length > 60) log.shift();
+  }
+  function jumpToUndoIndex(idx) {
+    if (idx < 0 || idx >= undoStack.length) return;
+    clearNext();
+    const snap = undoStack[idx];
+    undoStack = undoStack.slice(0, idx);
+    restore(snap);
+    AudioEngine.playSfx("click");
+    currentEnding = null;
+    closePanels();
+    resultScreen.classList.add("hidden");
+    gameScreen.classList.remove("hidden");
+    toolbar.classList.remove("hidden");
+    clearAuto();
+    clearTyping();
+    playNode(currentNodeId, true);
   }
   function renderHistory() {
     historyList.innerHTML = "";
-    if (history.length === 0) {
+    if (log.length === 0) {
       const li = document.createElement("li");
       li.textContent = "（夜才刚刚开始……）";
       li.className = "history-item history-dim";
       historyList.appendChild(li);
       return;
     }
-    history.forEach(function (h) {
+    log.forEach(function (h) {
       if (h.chapter) {
         const li = document.createElement("li");
         li.className = "history-chapter";
-        li.textContent = h.chapter;
+        const span = document.createElement("span");
+        span.textContent = h.chapter;
+        li.appendChild(span);
+        // 若 undoStack 中存在该节点的快照，提供「回溯至此」按钮
+        if (h.nodeId && h.nodeId !== currentNodeId) {
+          let snapIdx = -1;
+          for (let i = undoStack.length - 1; i >= 0; i--) {
+            if (undoStack[i].nodeId === h.nodeId) { snapIdx = i; break; }
+          }
+          if (snapIdx >= 0) {
+            const jbtn = document.createElement("button");
+            jbtn.type = "button";
+            jbtn.className = "link-btn history-jump";
+            jbtn.textContent = "回溯至此";
+            jbtn.addEventListener("click", function () { jumpToUndoIndex(snapIdx); });
+            li.appendChild(jbtn);
+          }
+        }
         historyList.appendChild(li);
       }
-      const li2 = document.createElement("li");
-      li2.className = "history-item";
-      li2.textContent = h.text;
-      historyList.appendChild(li2);
+      if (h.text) {
+        const li2 = document.createElement("li");
+        li2.className = "history-item";
+        li2.textContent = h.text;
+        historyList.appendChild(li2);
+      }
       if (h.chosen) {
         const li3 = document.createElement("li");
         li3.className = "history-chosen";
-        li3.textContent = "→ " + h.chosen;
+        li3.textContent = h.chosen;
         historyList.appendChild(li3);
       }
     });
-    // 滚动到底部（最新）
     setTimeout(function () { historyList.scrollTop = historyList.scrollHeight; }, 0);
   }
 
   // ---------- 节点播放 ----------
-  function playNode(nodeId) {
+  function playNode(nodeId, replay) {
     const node = NODES[nodeId];
     if (!node) { console.error("未知节点: " + nodeId); return; }
     currentNodeId = nodeId;
@@ -513,22 +621,28 @@
     saveGame();
 
     if (node.type === "narrative") {
+      const resolved = Engine.resolveNode(node, flags, variantMap);
       chapterEl.textContent = node.chapter || "";
-      if (node.chapter) renderProgress();
-      pushHistory({ chapter: node.chapter, text: node.text });
+      renderProgress();
+      if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
+      const wasRead = isRead(nodeId);
       markRead(nodeId);
-      typeText(node.text, storyEl, function () {
+      typeText(resolved.text, storyEl, function () {
         showContinueHint(function () { playNode(node.next); });
-      }, isRead(nodeId));
+      }, wasRead);
       return;
     }
 
     if (node.type === "choice") {
+      const resolved = Engine.resolveNode(node, flags, variantMap);
       chapterEl.textContent = node.chapter || "";
       renderProgress();
-      pushHistory({ chapter: node.chapter, text: node.text });
+      if (!replay) pushHistory({ nodeId: nodeId, chapter: node.chapter, text: resolved.text });
+      const wasRead = isRead(nodeId);
       markRead(nodeId);
-      typeText(node.text, storyEl, function () { showOptions(node); }, isRead(nodeId));
+      typeText(resolved.text, storyEl, function () {
+        showOptions(node, resolved.options);
+      }, wasRead);
       return;
     }
 
@@ -536,30 +650,33 @@
       currentEnding = node;
       unlockEnding(node.id);
       unlockCard(computeMBTI().code);
-      saveGame(); // 到结局即清档
+      saveGame();
       showResult(node);
     }
   }
 
-  // ---------- 选项 ----------
+  // ---------- 选项与可控反馈 ----------
   function optionVisible(opt) {
-    if (!opt.requires) return true;
-    if (opt.requires.master && affinity.master < opt.requires.master) return false;
-    if (opt.requires.shen && affinity.shen < opt.requires.shen) return false;
-    return true;
+    return Engine.optionVisible(opt, affinity);
   }
 
-  function showOptions(node) {
+  function showOptions(node, rawOptions) {
     optionsEl.innerHTML = "";
-    const visible = node.options.filter(optionVisible);
+    const list = rawOptions || node.options;
+    const visible = list.filter(optionVisible);
     visible.forEach(function (opt, idx) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "option-card" + (opt.hidden ? " option-hidden" : "");
       btn.dataset.idx = idx;
-      // 键盘序号提示（1-4）
-      btn.innerHTML = '<span class="opt-key">' + (idx + 1) + "</span>" + opt.text;
-      btn.style.transitionDelay = (idx * 0.12) + "s";
+      const keySpan = document.createElement("span");
+      keySpan.className = "opt-key";
+      keySpan.textContent = String(idx + 1);
+      const textSpan = document.createElement("span");
+      textSpan.textContent = opt.text;
+      btn.appendChild(keySpan);
+      btn.appendChild(textSpan);
+      btn.style.transitionDelay = (idx * 0.1) + "s";
       btn.addEventListener("click", function () { chooseOption(node, opt, btn); });
       optionsEl.appendChild(btn);
       requestAnimationFrame(function () { btn.classList.add("show"); });
@@ -570,28 +687,18 @@
     const all = optionsEl.querySelectorAll(".option-card");
     all.forEach(function (b) { b.disabled = true; });
     btn.classList.add("chosen");
-    playSfx("click");
+    AudioEngine.playSfx("click");
+    dismissToolbarGuide();
+
     undoStack.push(snapshot());
     if (undoStack.length > 20) undoStack.shift();
 
-    // 计入历史
     pushHistory({ chosen: opt.text });
 
-    // 计分（小支点/分流无 scores 不计分）
-    if (opt.scores) {
-      Object.keys(opt.scores).forEach(function (k) { scores[k] += opt.scores[k]; });
-      choiceIndex++;
-    }
-    // 平局裁判：小支点的 0.5 分倾向加权（不计分、不进进度条，细化 3:0 / 2:1 的强度区分）
-    if (opt.nudge) {
-      Object.keys(opt.nudge).forEach(function (k) { scores[k] += opt.nudge[k]; });
-    }
-    if (opt.flags) opt.flags.forEach(function (f) { flags[f] = true; });
-    if (opt.affinity) {
-      Object.keys(opt.affinity).forEach(function (k) { affinity[k] += opt.affinity[k]; });
-    }
+    if (Engine.applyOption(scores, flags, affinity, opt)) choiceIndex++;
+    renderProgress();
 
-    // 显示反馈，稍候跳转（两级计时器均由 nextTimer 追踪，撤销/重置时统一取消）
+    // 选后反馈：呈现反馈正文 + 玩家可控的「继续（空格）」按钮（Auto 模式自动继续）
     clearNext();
     nextTimer = setTimeout(function () {
       nextTimer = null;
@@ -601,32 +708,26 @@
       fb.textContent = opt.feedback;
       optionsEl.appendChild(fb);
       updateUndoBar();
-      var goNext = function () { nextTimer = null; playNode(opt.next); };
-      if (settings.auto) {
-        autoContinue(1800, goNext);
-      } else {
-        nextTimer = setTimeout(goNext, 1500);
-      }
-    }, 450);
+      showContinueHint(function () { playNode(opt.next); });
+    }, 320);
   }
 
   // ---------- 撤销 ----------
-  // 撤销栏常驻：只要还有可撤销的步数就显示（与 Z 键行为一致）
   function updateUndoBar() {
     undoBar.classList.toggle("hidden", undoStack.length === 0);
   }
   function doUndo() {
     if (!undoStack.length) return;
-    clearNext();  // 取消待触发的跳转，防止撤销后剧情仍被推进
+    clearNext();
     restore(undoStack.pop());
-    playSfx("click");
+    AudioEngine.playSfx("click");
     currentEnding = null;
     resultScreen.classList.add("hidden");
     gameScreen.classList.remove("hidden");
     toolbar.classList.remove("hidden");
     clearAuto();
     clearTyping();
-    playNode(currentNodeId);
+    playNode(currentNodeId, true);
   }
 
   // ---------- 继续提示 ----------
@@ -634,59 +735,47 @@
     const hint = document.createElement("button");
     hint.type = "button";
     hint.className = "btn-ghost";
-    hint.textContent = "▸ 继续（空格）";
-    hint.style.marginTop = "8px";
+    hint.textContent = "继续（空格）";
+    hint.style.marginTop = "4px";
     hint.style.opacity = "0";
-    hint.style.transition = "opacity 0.6s";
+    hint.style.transition = "opacity 0.4s";
     optionsEl.appendChild(hint);
     requestAnimationFrame(function () { hint.style.opacity = "1"; });
-    hint.addEventListener("click", function () {
+    const go = function () {
+      if (hint.disabled) return;
       hint.disabled = true;
+      clearAuto();
       onContinue();
-    });
-    // Auto 模式下自动点继续
+    };
+    hint.addEventListener("click", go);
     if (settings.auto) {
-      autoContinue(1200, function () { if (!hint.disabled) onContinue(); });
+      autoContinue(1400, go);
     }
   }
 
-  // ---------- MBTI 计算 ----------
+  // ---------- MBTI 计算与结局展示 ----------
   function computeMBTI() {
-    const code =
-      (scores.E > scores.I ? "E" : "I") +
-      (scores.S > scores.N ? "S" : "N") +
-      (scores.T > scores.F ? "T" : "F") +
-      (scores.J > scores.P ? "J" : "P");
-    return MBTI_TYPES[code];
+    return MBTI_TYPES[Engine.computeCode(scores)];
   }
-
-  // ---------- 结局拼装 ----------
   function buildEndingText(node) {
-    const parts = [node.body];
-    node.variants.forEach(function (v) {
-      if (flags[v.flag] && v.text) parts.push(v.text);
-    });
-    parts.push(node.baseText);
-    return parts.join("\n");
+    return Engine.buildEndingText(node, flags);
   }
 
-  // ---------- 结局展示 ----------
   function showResult(ending) {
     gameScreen.classList.add("hidden");
     toolbar.classList.add("hidden");
     resultScreen.classList.remove("hidden");
     renderGallery();
     renderCards();
-    playSfx("reveal");
+    AudioEngine.playSfx("reveal");
 
     endingTitleEl.textContent = ending.endingTitle;
     const fullText = buildEndingText(ending);
     typeText(fullText, endingTextEl, function () {
       const mbtiBox = $("mbti-box");
       if (mbtiBox) mbtiBox.classList.add("mbti-show");
-      playSfx("chime");
+      AudioEngine.playSfx("chime");
     });
-    // 立即模式下的兜底：MBTI 区直接显示
     if (settings.speed === "instant") {
       $("mbti-box").classList.add("mbti-show");
     }
@@ -697,24 +786,23 @@
     mbtiRole.textContent = "「" + m.role + "」";
     mbtiDesc.textContent = m.desc;
 
-    // 擦肩而过提示：未达成隐藏结局时点明"还有一扇门"，驱动重玩
     const resultHint = $("result-hint");
     if (resultHint) {
       if (ending.id === "endingD") {
         resultHint.textContent = "你推开了那扇最难推开的门——这一夜，三个人的告别都与你有关。";
       } else if (affinity.master >= 2 || affinity.shen >= 2) {
-        resultHint.textContent = "离席时，主人与沈先生似乎都想对你说什么，终究没有说出口——这一夜，似乎还有一扇门在等你。";
+        const who = affinity.master >= 2 ? "主人已认可你的分寸，只差走进沈先生的心事" : "沈先生已向你敞开心扉，只差赢得主人的信任";
+        resultHint.textContent = "离席时，似乎还有一扇门与你擦肩而过（" + who + "）。再赴晚宴，那扇门或许会为你而开。";
       } else {
-        resultHint.textContent = "这一夜的晚宴只有三位客人赴约——你、真相，与一扇始终虚掩的门。";
+        resultHint.textContent = "这一夜的晚宴只有三位客人赴约——若在席间对主人与沈先生多一分体谅与克制，第六章将浮现第四条路。";
       }
     }
 
-    // 四维度倾向条：百分比 + 高亮测出的那一侧
     renderMbtiBars();
   }
 
-  // ---------- 四维度倾向条 ----------
-  var MBTI_DIMS = [
+  // ---------- 四维度倾向条（含百分比） ----------
+  const MBTI_DIMS = [
     { left: "E", right: "I", label: "外向 — 内向" },
     { left: "S", right: "N", label: "实感 — 直觉" },
     { left: "T", right: "F", label: "思考 — 情感" },
@@ -728,22 +816,29 @@
       const l = scores[d.left], r = scores[d.right];
       const total = l + r;
       if (total <= 0) return;
-      const pct = Math.round((r / total) * 100);
+      const pctR = Math.round((r / total) * 100);
+      const pctL = 100 - pctR;
       const row = document.createElement("div");
       row.className = "mbti-bar-row";
-      row.title = d.label + "：" + d.left + " " + (100 - pct) + "% / " + d.right + " " + pct + "%";
+      row.title = d.label + "：" + d.left + " " + pctL + "% / " + d.right + " " + pctR + "%";
       const sideL = document.createElement("span");
-      sideL.className = "bar-side" + (l > r ? " side-win" : "");
-      sideL.textContent = d.left;
+      sideL.className = "bar-side bar-side-l" + (l > r ? " side-win" : "");
+      sideL.textContent = d.left + " " + pctL + "%";
       const track = document.createElement("span");
       track.className = "bar-track";
       const fill = document.createElement("span");
       fill.className = "bar-fill";
-      fill.style.width = pct + "%";   // 右侧占比，从左向右填充
+      if (l >= r) {
+        fill.style.left = "0";
+        fill.style.width = pctL + "%";
+      } else {
+        fill.style.left = (100 - pctR) + "%";
+        fill.style.width = pctR + "%";
+      }
       track.appendChild(fill);
       const sideR = document.createElement("span");
-      sideR.className = "bar-side" + (r > l ? " side-win" : "");
-      sideR.textContent = d.right;
+      sideR.className = "bar-side bar-side-r" + (r > l ? " side-win" : "");
+      sideR.textContent = pctR + "% " + d.right;
       row.appendChild(sideL);
       row.appendChild(track);
       row.appendChild(sideR);
@@ -751,8 +846,7 @@
     });
   }
 
-  // ---------- 复制结局 / 系统分享 ----------
-  // 移动端优先唤起系统分享面板（Web Share API），不支持则回退剪贴板
+  // ---------- 复制结局 / 保存名片图 ----------
   function canShare() {
     return !!(navigator.share && navigator.canShare);
   }
@@ -766,26 +860,26 @@
     const cardsGot = Object.keys(getCards()).length;
     const shareTitle = "迷雾庄园 · " + currentEnding.endingTitle;
     const shareSummary =
-      "晚宴为我写下的画像——MBTI：" + m.code + " · " + m.name + "\n" + m.role;
+      "晚宴为我写下的画像——" + m.code + " · " + m.name + "\n" + m.role;
     const text =
       shareTitle + "\n" +
       buildEndingText(currentEnding) + "\n\n" +
       shareSummary + "\n\n" +
-      "来迷雾庄园，赴一场测出你 MBTI 的晚宴。\n" +
-      "三条剧情线 · 一个隐藏结局 · 我已解锁 " + got + "/4 个结局 · 名片夹 " + cardsGot + "/16 型";
+      "来迷雾庄园，赴一场测出你十六型人格的晚宴。\n" +
+      "四条剧情线 · 一个隐藏结局 · 我已解锁 " + got + "/4 个结局 · 名片夹 " + cardsGot + "/16 型";
     if (canShare()) {
       navigator.share({ title: shareTitle, text: text })
         .then(function () { shareSucceeded(); })
         .catch(function (err) {
-          if (err && err.name === "AbortError") return; // 用户取消，静默处理
-          fallbackCopy(text); // 其他失败（如权限）回退剪贴板
+          if (err && err.name === "AbortError") return;
+          fallbackCopy(text);
         });
     } else {
       fallbackCopy(text);
     }
   }
   function shareSucceeded() {
-    shareBtn.textContent = "已分享 ✓";
+    shareBtn.textContent = "已分享";
     setTimeout(updateShareBtn, 1800);
   }
   function fallbackCopy(text) {
@@ -800,42 +894,133 @@
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).catch(function () {});
     }
-    shareBtn.textContent = "已复制 ✓";
+    shareBtn.textContent = "已复制";
     setTimeout(updateShareBtn, 1800);
   }
 
-  // ---------- 面板控制 ----------
-  function openPanel(panel) { panel.classList.remove("hidden"); }
-  function closePanels() {
+  function saveCard() {
+    if (!currentEnding) return;
+    CardExporter.saveCardImage({
+      mbti: computeMBTI(),
+      endingTitle: currentEnding.endingTitle,
+      scores: scores,
+      dims: MBTI_DIMS
+    }, cardBtn);
+  }
+
+  // ---------- 进度备份导出 / 导入 ----------
+  function exportBackup() {
+    const payload = {
+      v: 1,
+      gallery: getGallery(),
+      cards: getCards(),
+      save: loadSave()
+    };
+    const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    fallbackCopy(code);
+    exportBtn.textContent = "备份码已复制";
+    setTimeout(function () { exportBtn.textContent = "导出备份码"; }, 1800);
+  }
+  function importBackup() {
+    const raw = window.prompt("请粘贴之前导出的进度备份码：");
+    if (!raw) return;
+    try {
+      const data = JSON.parse(decodeURIComponent(escape(atob(raw.trim()))));
+      if (!data || typeof data !== "object") throw new Error("bad");
+      if (data.gallery && typeof data.gallery === "object") {
+        localStorage.setItem(K_GALLERY, JSON.stringify(data.gallery));
+      }
+      if (data.cards && typeof data.cards === "object") {
+        localStorage.setItem(K_CARDS, JSON.stringify(data.cards));
+      }
+      if (data.save && validSave(data.save)) {
+        localStorage.setItem(K_SAVE, JSON.stringify(data.save));
+      }
+      renderGallery();
+      renderCards();
+      updateContinueBtn();
+      importBtn.textContent = "已恢复";
+      setTimeout(function () { importBtn.textContent = "导入恢复"; }, 1800);
+    } catch (e) {
+      window.alert("备份码无效或已损坏，请检查是否复制完整。");
+    }
+  }
+
+  // ---------- 首次印章微引导 ----------
+  function showToolbarGuideIfNeeded() {
+    if (!toolbarGuide) return;
+    let seen = false;
+    try { seen = !!localStorage.getItem(K_GUIDE); } catch (e) {}
+    if (seen) { toolbarGuide.classList.add("hidden"); return; }
+    toolbarGuide.classList.remove("hidden");
+  }
+  function dismissToolbarGuide() {
+    if (!toolbarGuide || toolbarGuide.classList.contains("hidden")) return;
+    toolbarGuide.classList.add("hidden");
+    try { localStorage.setItem(K_GUIDE, "1"); } catch (e) {}
+  }
+
+  // ---------- 面板控制（含焦点管理） ----------
+  let lastFocus = null;
+  function activePanel() {
+    if (!settingsPanel.classList.contains("hidden")) return settingsPanel;
+    if (!historyPanel.classList.contains("hidden")) return historyPanel;
+    return null;
+  }
+  function focusables(panel) {
+    return Array.prototype.slice.call(panel.querySelectorAll("button:not(:disabled), input:not(:disabled)"))
+      .filter(function (el) { return el.offsetParent !== null; });
+  }
+  function openPanel(panel) {
+    dismissToolbarGuide();
+    if (!activePanel()) lastFocus = document.activeElement;
     settingsPanel.classList.add("hidden");
     historyPanel.classList.add("hidden");
+    panel.classList.remove("hidden");
+    const f = focusables(panel);
+    const primary = panel.querySelector(".btn-primary") || f[0];
+    if (primary) primary.focus();
+  }
+  function closePanels() {
+    const had = !!activePanel();
+    settingsPanel.classList.add("hidden");
+    historyPanel.classList.add("hidden");
+    if (had && lastFocus && lastFocus.offsetParent !== null && lastFocus.focus) lastFocus.focus();
+    if (had) lastFocus = null;
+  }
+  function trapTab(e, panel) {
+    const f = focusables(panel);
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
   }
   function toggleSettings() {
     if (settingsPanel.classList.contains("hidden")) {
-      historyPanel.classList.add("hidden");
       applySettingsUI();
+      renderSlots();
       openPanel(settingsPanel);
     } else {
-      settingsPanel.classList.add("hidden");
+      closePanels();
     }
   }
   function toggleHistory() {
     if (historyPanel.classList.contains("hidden")) {
-      settingsPanel.classList.add("hidden");
       renderHistory();
       openPanel(historyPanel);
     } else {
-      historyPanel.classList.add("hidden");
+      closePanels();
     }
   }
   function toggleAuto() {
+    dismissToolbarGuide();
     settings.auto = !settings.auto;
     saveSettings();
     applySettingsUI();
     if (settings.auto) {
-      // 若当前正在等待继续提示，立即触发
-      const hint = optionsEl.querySelector(".btn-ghost");
-      if (hint && !hint.disabled && hint.textContent.indexOf("继续") >= 0) hint.click();
+      const hint = optionsEl.querySelector(".btn-ghost:not(:disabled)");
+      if (hint && hint.textContent.indexOf("继续") >= 0) hint.click();
     } else {
       clearAuto();
     }
@@ -848,24 +1033,27 @@
     resultScreen.classList.add("hidden");
     gameScreen.classList.remove("hidden");
     toolbar.classList.remove("hidden");
+    showToolbarGuideIfNeeded();
 
     if (fresh) {
       resetState();
+      variantMap = buildVariantMap();
       playNode("prologue");
     } else {
-      // 读档
       const s = loadSave();
       resetState();
-      if (s && NODES[s.nodeId]) {
+      if (s) {
         currentNodeId = s.nodeId;
         choiceIndex = s.choiceIndex || 0;
-        scores = s.scores || scores;
-        flags = s.flags || {};
-        affinity = s.affinity || affinity;
-        history = s.history || [];
-        undoStack = Array.isArray(s.undoStack) ? s.undoStack : [];
-        playNode(s.nodeId);
+        scores = s.scores;
+        flags = s.flags;
+        affinity = s.affinity;
+        variantMap = s.variantMap || {};
+        log = s.history;
+        undoStack = s.undoStack || [];
+        playNode(s.nodeId, true);
       } else {
+        variantMap = buildVariantMap();
         playNode("prologue");
       }
     }
@@ -874,12 +1062,13 @@
   function resetState() {
     currentNodeId = "prologue";
     choiceIndex = 0;
-    scores = { E:0, I:0, S:0, N:0, T:0, F:0, J:0, P:0 };
+    scores = Engine.newScores();
     flags = {};
-    affinity = { master: 0, shen: 0 };
+    affinity = Engine.newAffinity();
+    variantMap = {};
     currentEnding = null;
     undoStack = [];
-    history = [];
+    log = [];
     clearTyping();
     clearAuto();
     clearNext();
@@ -894,6 +1083,7 @@
     progressEl.innerHTML = "";
     undoBar.classList.add("hidden");
     document.body.classList.remove("tint-blue", "tint-gold");
+    document.body.dataset.lighting = "foyer";
     appEl.classList.remove("fx-shatter");
   }
 
@@ -906,6 +1096,8 @@
     resultScreen.classList.add("hidden");
     toolbar.classList.add("hidden");
     titleScreen.classList.remove("hidden");
+    document.body.classList.remove("tint-blue", "tint-gold");
+    document.body.dataset.lighting = "foyer";
     updateContinueBtn();
     renderGallery();
     renderCards();
@@ -913,8 +1105,8 @@
 
   // ---------- 键盘操作 ----------
   function onKeydown(e) {
-    // 面板打开时：Esc 关闭
     const panelOpen = !settingsPanel.classList.contains("hidden") || !historyPanel.classList.contains("hidden");
+    if (e.key === "Tab" && panelOpen) { trapTab(e, activePanel()); return; }
     if (e.key === "Escape") {
       if (panelOpen) { closePanels(); return; }
       if (!gameScreen.classList.contains("hidden")) { toggleSettings(); return; }
@@ -925,14 +1117,12 @@
     const inGame = !gameScreen.classList.contains("hidden");
     if (!inGame) return;
 
-    // 数字 1-4：选选项
     if (/^[1-4]$/.test(e.key)) {
       const cards = optionsEl.querySelectorAll(".option-card:not(:disabled)");
       const idx = parseInt(e.key, 10) - 1;
       if (cards[idx]) { cards[idx].click(); }
       return;
     }
-    // 空格：继续提示 / 跳过打字
     if (e.key === " " || e.code === "Space") {
       e.preventDefault();
       if (isTyping) { storyEl.click(); return; }
@@ -940,23 +1130,29 @@
       if (hint) hint.click();
       return;
     }
-    // A：自动播放
     if (e.key === "a" || e.key === "A") { toggleAuto(); return; }
-    // H：历史
     if (e.key === "h" || e.key === "H") { toggleHistory(); return; }
-    // Z：撤销
     if (e.key === "z" || e.key === "Z") { doUndo(); return; }
   }
 
   // ---------- 事件绑定 ----------
   startBtn.addEventListener("click", function () {
-    // 已有存档时，开新局前清掉旧档
+    if (loadSave() && !window.confirm("开始新的晚宴会覆盖当前存档，确定吗？")) return;
     try { localStorage.removeItem(K_SAVE); } catch (e) {}
     startGame(true);
   });
   continueBtn.addEventListener("click", function () { startGame(false); });
+  if (titleRainBtn) {
+    titleRainBtn.addEventListener("click", function () {
+      settings.rain = !settings.rain;
+      if (settings.rain && !settings.sfx) settings.sfx = true;
+      saveSettings();
+      applySettingsUI();
+    });
+  }
   againBtn.addEventListener("click", function () { startGame(true); });
   shareBtn.addEventListener("click", shareResult);
+  cardBtn.addEventListener("click", saveCard);
 
   settingsBtn.addEventListener("click", toggleSettings);
   settingsClose.addEventListener("click", closePanels);
@@ -965,43 +1161,73 @@
   historyClose.addEventListener("click", closePanels);
   autoBtn.addEventListener("click", toggleAuto);
 
-  // 速度分段
   speedSeg.querySelectorAll("button").forEach(function (b) {
     b.addEventListener("click", function () {
       settings.speed = b.dataset.speed;
       saveSettings();
       applySettingsUI();
-      playSfx("click");
+      AudioEngine.playSfx("click");
     });
   });
-  // 音效开关
+  if (fontSeg) {
+    fontSeg.querySelectorAll("button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        settings.font = b.dataset.font;
+        saveSettings();
+        applySettingsUI();
+        AudioEngine.playSfx("click");
+      });
+    });
+  }
+  if (contrastToggle) {
+    contrastToggle.addEventListener("click", function () {
+      settings.contrast = !settings.contrast;
+      saveSettings();
+      applySettingsUI();
+      AudioEngine.playSfx("click");
+    });
+  }
+  if (saveSlotsEl) {
+    saveSlotsEl.querySelectorAll(".slot-item").forEach(function (row) {
+      const idx = parseInt(row.dataset.slot, 10);
+      row.querySelector(".slot-save").addEventListener("click", function () { saveToSlot(idx); });
+      row.querySelector(".slot-load").addEventListener("click", function () { loadFromSlot(idx); });
+    });
+  }
   sfxToggle.addEventListener("click", function () {
     settings.sfx = !settings.sfx;
     saveSettings();
     applySettingsUI();
-    if (settings.sfx) playSfx("chime");
+    if (settings.sfx) AudioEngine.playSfx("chime");
   });
-  // 雨声开关
   rainToggle.addEventListener("click", function () {
     settings.rain = !settings.rain;
     saveSettings();
     applySettingsUI();
   });
-  // 已读快进开关
+  if (volumeRange) {
+    volumeRange.addEventListener("input", function () {
+      settings.volume = Math.max(0, Math.min(1, parseInt(volumeRange.value, 10) / 100));
+      saveSettings();
+      AudioEngine.setConfig({ volume: settings.volume });
+    });
+  }
   skipToggle.addEventListener("click", function () {
     settings.skipRead = !settings.skipRead;
     saveSettings();
     applySettingsUI();
   });
-  // Auto 开关
   autoToggle.addEventListener("click", toggleAuto);
+  if (exportBtn) exportBtn.addEventListener("click", exportBackup);
+  if (importBtn) importBtn.addEventListener("click", importBackup);
 
-  // 撤销 / 图鉴重置
   undoBtn.addEventListener("click", doUndo);
   resetGalleryBtn.addEventListener("click", function () {
+    if (!window.confirm("确定要清空结局图鉴与 16 型名片夹吗？")) return;
     try {
       localStorage.removeItem(K_GALLERY);
       localStorage.removeItem(K_CARDS);
+      localStorage.removeItem(K_RUNS);
     } catch (e) {}
     renderGallery();
     renderCards();
@@ -1011,7 +1237,21 @@
 
   document.addEventListener("keydown", onKeydown);
 
-  // 点击遮罩空白处关闭
+  // 首次用户手势恢复被挂起的音频上下文
+  function unlockAudio() {
+    document.removeEventListener("pointerdown", unlockAudio);
+    document.removeEventListener("keydown", unlockAudio);
+    AudioEngine.unlock();
+  }
+  document.addEventListener("pointerdown", unlockAudio);
+  document.addEventListener("keydown", unlockAudio);
+
+  // 页面切到后台时暂停 Auto 计时器与雨声
+  document.addEventListener("visibilitychange", function () {
+    AudioEngine.onVisibilityChange(document.hidden);
+    if (document.hidden) clearAuto();
+  });
+
   settingsPanel.addEventListener("click", function (e) { if (e.target === settingsPanel) closePanels(); });
   historyPanel.addEventListener("click", function (e) { if (e.target === historyPanel) closePanels(); });
 

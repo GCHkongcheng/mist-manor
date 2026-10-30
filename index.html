@@ -2,20 +2,23 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>迷雾庄园 · 一场测出你 MBTI 的晚宴</title>
-  <meta name="description" content="一座迷雾中的维多利亚庄园，一场神秘晚宴。你的每一个选择，都在悄悄写下你的画像——四条剧情线、四个结局（含隐藏结局），玩到结局揭晓你的 MBTI。" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>迷雾庄园 · 一场测出你十六型人格的晚宴</title>
+  <meta name="description" content="一座迷雾中的维多利亚庄园，一场神秘晚宴。你的每一个选择，都在悄悄写下你的画像——四条剧情线、四个结局（含隐藏结局），玩到结局揭晓你的十六型人格画像。" />
   <meta name="theme-color" content="#0d0b14" />
-  <!-- Open Graph：分享卡片（零图片资源，用 favicon 占位） -->
+  <!-- Open Graph & 社交分享卡片（1200x630 内联 SVG 海报，维持零外部图片文件） -->
   <meta property="og:type" content="website" />
-  <meta property="og:title" content="迷雾庄园 · 一场测出你 MBTI 的晚宴" />
-  <meta property="og:description" content="一封没有署名的邀请函，一座迷雾中的庄园。8 个选择，四条剧情线、四个结局（含隐藏结局）——玩到结局，揭晓你的 MBTI 画像与专属庄园角色。" />
+  <meta property="og:url" content="https://mist.gchkc.top/" />
+  <meta property="og:title" content="迷雾庄园 · 一场测出你十六型人格的晚宴" />
+  <meta property="og:description" content="一封没有署名的邀请函，一座迷雾中的庄园。12 个选择，四条剧情线、四个结局（含隐藏结局）——玩到结局，揭晓你的人格画像与专属庄园角色。" />
   <meta property="og:locale" content="zh_CN" />
+  <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Crect width='1200' height='630' fill='%230d0b14'/%3E%3Crect x='36' y='36' width='1128' height='558' fill='none' stroke='%23a38b55' stroke-width='2'/%3E%3Crect x='50' y='50' width='1100' height='530' fill='none' stroke='%23a38b55' stroke-opacity='0.45' stroke-width='1'/%3E%3Ctext x='600' y='210' text-anchor='middle' fill='%23c9a96a' font-size='26' letter-spacing='10' font-family='serif'%3E%E4%B8%80%E5%9C%BA%E6%B2%89%E6%B5%B8%E5%BC%8F%E6%96%87%E5%AD%97%E6%B8%B8%E6%88%8F%3C/text%3E%3Ctext x='600' y='330' text-anchor='middle' fill='%23e8e2d4' font-size='88' letter-spacing='24' font-family='serif'%3E%E8%BF%B7%E9%9B%BE%E5%BA%84%E5%9B%AD%3C/text%3E%3Ctext x='600' y='415' text-anchor='middle' fill='%23a39b8a' font-size='30' letter-spacing='6' font-family='serif'%3E%E4%BB%8A%E5%A4%9C%E7%9A%84%E6%99%9A%E5%AE%B4%EF%BC%8C%E5%B0%86%E5%86%99%E4%B8%8B%E4%BD%A0%E7%9A%84%E7%94%BB%E5%83%8F%3C/text%3E%3Ctext x='600' y='515' text-anchor='middle' fill='%23c9a96a' font-size='22' letter-spacing='4' font-family='Georgia,serif'%3Emist.gchkc.top%3C/text%3E%3C/svg%3E" />
+  <meta name="twitter:card" content="summary_large_image" />
   <!-- 烛光 favicon（data-URI 内联 SVG，维持零资源文件） -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230d0b14'/%3E%3Crect x='15' y='12' width='2' height='14' fill='%23c9a96a'/%3E%3Cellipse cx='16' cy='9' rx='3.2' ry='5' fill='%23e8d9a0'/%3E%3Cellipse cx='16' cy='9' rx='1.6' ry='3' fill='%23fff6d8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
-<body>
+<body data-lighting="foyer">
   <!-- 雾气背景层 -->
   <div class="fog fog-1"></div>
   <div class="fog fog-2"></div>
@@ -24,34 +27,52 @@
   <div class="candle candle-r"></div>
 
   <main id="app" class="app">
+    <!-- 卡片顶栏：印章式工具按钮（游戏中显示） -->
+    <div id="toolbar" class="toolbar hidden">
+      <span id="toolbar-guide" class="toolbar-guide hidden" role="status">印章：录＝历史 · 自＝自动 · 设＝设置</span>
+      <button id="history-btn" class="tool-btn" type="button" title="历史记录（录 · H）" aria-label="历史记录">录</button>
+      <button id="auto-btn" class="tool-btn" type="button" title="自动播放（自 · A）" aria-label="自动播放" aria-pressed="false">自</button>
+      <button id="settings-btn" class="tool-btn" type="button" title="设置（设 · Esc）" aria-label="设置">设</button>
+    </div>
+
     <!-- 标题屏 -->
     <header id="title-screen" class="title-screen">
       <p class="kicker">一场沉浸式文字游戏</p>
       <h1 class="title">迷雾庄园</h1>
       <p class="subtitle">今夜的晚宴，将写下你的画像</p>
       <div class="title-actions">
-        <button id="continue-btn" class="btn-ghost hidden" type="button">▸ 继续上次的晚宴</button>
+        <button id="continue-btn" class="btn-ghost hidden" type="button">继续上次的晚宴</button>
         <button id="start-btn" class="btn-primary" type="button">推开大门</button>
       </div>
-      <p class="hint">全程约 6 分钟 · 4 个结局（含 1 个隐藏结局）· 支持存档续玩</p>
-      <div class="gallery-wrap">
-        <p class="gallery-label">结局图鉴</p>
-        <div id="gallery-title" class="gallery"></div>
-        <p class="cards-label">名片夹 · 已集 0/16 型</p>
-        <div id="cards-title" class="cards"></div>
-        <button id="reset-gallery-btn" class="link-btn hidden" type="button">重置图鉴</button>
+      <!-- 标题屏快捷音频开关：开局即可听见夜雨 -->
+      <div class="title-audio">
+        <button id="title-rain-btn" class="audio-pill" type="button" aria-pressed="false">夜雨声：关（戴耳机更佳）</button>
       </div>
+      <p id="title-hint" class="hint">约 6 分钟 · 4 个结局 · 双题库重玩不重样</p>
+      <details class="collection">
+        <summary>收藏图鉴</summary>
+        <div class="gallery-wrap">
+          <p class="gallery-label">结局图鉴</p>
+          <div id="gallery-title" class="gallery"></div>
+          <p class="cards-label">名片夹 · 已集 0/16 型</p>
+          <div id="cards-title" class="cards"></div>
+          <button id="reset-gallery-btn" class="link-btn hidden" type="button">重置图鉴</button>
+        </div>
+      </details>
     </header>
 
     <!-- 游戏屏 -->
     <section id="game-screen" class="game-screen hidden">
       <p id="chapter" class="chapter"></p>
-      <div id="story-text" class="story-text"></div>
+      <div id="story-text" class="story-text" aria-live="polite"></div>
       <div id="options" class="options"></div>
-      <div id="progress" class="progress"></div>
+      <div class="progress-wrap">
+        <div id="progress" class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="12" aria-valuenow="0" aria-label="晚宴选择进度"></div>
+        <p id="progress-label" class="progress-label">第 1 / 12 问</p>
+      </div>
       <!-- 撤销栏 -->
       <div id="undo-bar" class="undo-bar hidden">
-        <button id="undo-btn" class="link-btn" type="button">↩ 撤销上一步</button>
+        <button id="undo-btn" class="link-btn" type="button">撤销上一步</button>
       </div>
     </section>
 
@@ -59,6 +80,7 @@
     <section id="result-screen" class="result-screen hidden">
       <h2 id="ending-title" class="ending-title"></h2>
       <div id="ending-text" class="ending-text"></div>
+      <!-- 人格画像：维多利亚式拜访名片 -->
       <div id="mbti-box" class="mbti-box">
         <div class="mbti-divider"><span>名片背面，写着——</span></div>
         <h2 id="mbti-code" class="mbti-code"></h2>
@@ -67,29 +89,27 @@
         <p id="mbti-desc" class="mbti-desc"></p>
         <div id="mbti-bars" class="mbti-bars"></div>
       </div>
+      <p id="result-hint" class="result-hint">四条剧情线 · 一个隐藏结局 · 你的选择决定你经历怎样的夜晚</p>
+      <details class="collection">
+        <summary>收藏图鉴 · 再赴晚宴解锁全部</summary>
+        <div class="gallery-wrap">
+          <p class="gallery-label">结局图鉴</p>
+          <div id="gallery-result" class="gallery"></div>
+          <p class="cards-label">名片夹 · 已集 0/16 型</p>
+          <div id="cards-result" class="cards"></div>
+        </div>
+      </details>
       <div class="result-actions">
-        <button id="again-btn" class="btn-primary" type="button">再赴晚宴（换条路走）</button>
+        <button id="again-btn" class="btn-primary" type="button">再赴晚宴（换套题走）</button>
         <button id="share-btn" class="btn-ghost" type="button">复制结局</button>
+        <button id="card-btn" class="btn-ghost" type="button">保存名片图</button>
       </div>
-      <p id="result-hint" class="hint">三条剧情线 · 一个隐藏结局 · 你的选择决定你经历怎样的夜晚</p>
-      <div class="gallery-wrap">
-        <p class="gallery-label">结局图鉴 · 再赴晚宴解锁全部</p>
-        <div id="gallery-result" class="gallery"></div>
-        <p class="cards-label">名片夹 · 已集 0/16 型</p>
-        <div id="cards-result" class="cards"></div>
-      </div>
+      <p class="disclaimer">本作品为互动叙事游戏，十六型人格结果仅供娱乐，非专业心理测评。</p>
     </section>
   </main>
 
-  <!-- 右上角工具条（游戏中显示） -->
-  <div id="toolbar" class="toolbar hidden">
-    <button id="history-btn" class="tool-btn" type="button" title="历史记录 (H)">📜</button>
-    <button id="auto-btn" class="tool-btn" type="button" title="自动播放 (A)">▶</button>
-    <button id="settings-btn" class="tool-btn" type="button" title="设置 (Esc)">⚙</button>
-  </div>
-
   <!-- 设置面板（遮罩） -->
-  <div id="settings-panel" class="overlay hidden">
+  <div id="settings-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-label="设置">
     <div class="panel">
       <h3 class="panel-title">设置</h3>
       <div class="panel-body">
@@ -103,30 +123,75 @@
           </div>
         </div>
         <div class="setting-row">
+          <span class="setting-label">字号与行距</span>
+          <div id="font-seg" class="segmented">
+            <button type="button" data-font="normal" class="active">标准</button>
+            <button type="button" data-font="large">舒适</button>
+            <button type="button" data-font="xlarge">大字宽松</button>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">高对比度</span>
+          <button id="contrast-toggle" class="toggle" type="button" aria-pressed="false" aria-label="高对比度开关">
+            <span class="toggle-knob"></span>
+          </button>
+        </div>
+        <div class="setting-row">
           <span class="setting-label">音效</span>
-          <button id="sfx-toggle" class="toggle" type="button" aria-pressed="false">
+          <button id="sfx-toggle" class="toggle" type="button" aria-pressed="false" aria-label="音效开关">
             <span class="toggle-knob"></span>
           </button>
         </div>
         <div class="setting-row">
           <span class="setting-label">雨声氛围</span>
-          <button id="rain-toggle" class="toggle" type="button" aria-pressed="false">
+          <button id="rain-toggle" class="toggle" type="button" aria-pressed="false" aria-label="雨声氛围开关">
             <span class="toggle-knob"></span>
           </button>
         </div>
         <div class="setting-row">
+          <label class="setting-label" for="volume-range">音量</label>
+          <input id="volume-range" class="volume-range" type="range" min="0" max="100" value="80" />
+        </div>
+        <div class="setting-row">
           <span class="setting-label">自动播放</span>
-          <button id="auto-toggle" class="toggle" type="button" aria-pressed="false">
+          <button id="auto-toggle" class="toggle" type="button" aria-pressed="false" aria-label="自动播放开关">
             <span class="toggle-knob"></span>
           </button>
         </div>
         <div class="setting-row">
           <span class="setting-label">已读快进</span>
-          <button id="skip-toggle" class="toggle" type="button" aria-pressed="false">
+          <button id="skip-toggle" class="toggle" type="button" aria-pressed="false" aria-label="已读快进开关">
             <span class="toggle-knob"></span>
           </button>
         </div>
-        <p class="panel-tip">快捷键：数字 1-4 选择 · 空格继续 · A 自动 · H 历史 · Esc 设置/暂停 · Z 撤销<br>雨声氛围与已读快进默认关闭，开启后自动记忆偏好</p>
+        <div class="setting-row setting-slots">
+          <span class="setting-label">存档槽位</span>
+          <div id="save-slots" class="save-slots">
+            <div class="slot-item" data-slot="0">
+              <span class="slot-name">槽一 · 空</span>
+              <button type="button" class="link-btn slot-save">存</button>
+              <button type="button" class="link-btn slot-load hidden">读</button>
+            </div>
+            <div class="slot-item" data-slot="1">
+              <span class="slot-name">槽二 · 空</span>
+              <button type="button" class="link-btn slot-save">存</button>
+              <button type="button" class="link-btn slot-load hidden">读</button>
+            </div>
+            <div class="slot-item" data-slot="2">
+              <span class="slot-name">槽三 · 空</span>
+              <button type="button" class="link-btn slot-save">存</button>
+              <button type="button" class="link-btn slot-load hidden">读</button>
+            </div>
+          </div>
+        </div>
+        <div class="setting-row">
+          <span class="setting-label">进度备份</span>
+          <div class="backup-actions">
+            <button id="export-btn" class="link-btn" type="button">导出备份码</button>
+            <button id="import-btn" class="link-btn" type="button">导入恢复</button>
+          </div>
+        </div>
+        <p class="panel-tip">卡片右上角印章：录＝历史 · 自＝自动播放 · 设＝设置<br>快捷键：数字 1-4 选择 · 空格继续 · A 自动 · H 历史 · Esc 设置/暂停 · Z 撤销</p>
       </div>
       <div class="panel-actions">
         <button id="settings-close" class="btn-primary" type="button">继续游戏</button>
@@ -136,7 +201,7 @@
   </div>
 
   <!-- 历史记录面板（遮罩） -->
-  <div id="history-panel" class="overlay hidden">
+  <div id="history-panel" class="overlay hidden" role="dialog" aria-modal="true" aria-label="历史记录">
     <div class="panel panel-wide">
       <h3 class="panel-title">这一夜，你走过的路</h3>
       <div class="panel-body">
@@ -149,10 +214,13 @@
   </div>
 
   <footer class="footer">
-    <span>迷雾庄园 · 用华为云码道 CodeArts 创作</span>
+    <span>迷雾庄园 · 用华为云码道 CodeArts 创作 · 仅供娱乐</span>
   </footer>
 
-  <script src="data.js"></script>
-  <script src="game.js"></script>
+  <script src="data.js?v=2"></script>
+  <script src="engine.js?v=2"></script>
+  <script src="audio.js?v=2"></script>
+  <script src="card.js?v=2"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>

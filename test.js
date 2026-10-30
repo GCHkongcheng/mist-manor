@@ -1,6 +1,6 @@
 // 自动化验证（隐藏结局版）：
 //   [1] 图结构完整性（next 指向存在 / 无孤岛 / 4 个结局）
-//   [2] 计分完整性（任意路径 8 个计分选择，四维度各 2 题）
+//   [2] 计分完整性（任意路径 12 个计分选择，四维度各 3 题）
 //   [3] MBTI 计算 + 各线 16 型全覆盖
 //   [4] D 线隐藏选项触发逻辑（requires 判定与好感度枚举一致性）
 //   [5] 结局变体旗标可达
@@ -24,13 +24,9 @@ function ok(name, cond) {
   else { fail++; console.log("  ✗ " + name); }
 }
 
-// 复刻 game.js 的隐藏选项可见性逻辑
-function optionVisible(opt, affinity) {
-  if (!opt.requires) return true;
-  if (opt.requires.master && affinity.master < opt.requires.master) return false;
-  if (opt.requires.shen && affinity.shen < opt.requires.shen) return false;
-  return true;
-}
+// 与 game.js 共用同一份引擎逻辑（不再复刻）
+const Engine = require("./engine.js");
+const optionVisible = Engine.optionVisible;
 
 // ---------- [1] 图结构 ----------
 console.log("\n[1] 图结构完整性");
@@ -48,11 +44,12 @@ ok("所有 next 指向存在的节点", badNext.length === 0);
 // 可达性 BFS（含隐藏选项——验证 D 线可达）
 const reachable = new Set(["prologue"]);
 const queue = ["prologue"];
+const enqueue = id => { if (!reachable.has(id)) { reachable.add(id); queue.push(id); } };
 while (queue.length) {
   const id = queue.shift();
   const n = NODES[id];
-  if (n.type === "narrative") { reachable.add(n.next); queue.push(n.next); }
-  if (n.type === "choice") n.options.forEach(o => { reachable.add(o.next); queue.push(o.next); });
+  if (n.type === "narrative") enqueue(n.next);
+  if (n.type === "choice") n.options.forEach(o => enqueue(o.next));
 }
 ok("无孤岛节点（全部可达，含 D 线）", reachable.size === STORY.length);
 
@@ -62,41 +59,75 @@ endings.forEach(e => {
 });
 ok("变体文本均非空", endings.every(e => e.variants.every(v => v.text && v.text.length > 0)));
 
-// ---------- [2] 全路径遍历（复刻游戏逻辑） ----------
-console.log("\n[2] 全路径遍历 + 计分完整性");
-function walk(nodeId, scores, flags, affinity, choicesMade, endingsHit, paths) {
-  const n = NODES[nodeId];
-  if (n.type === "ending") {
-    paths.push({ scores: { ...scores }, flags: { ...flags }, affinity: { ...affinity }, choices: choicesMade, ending: nodeId });
-    endingsHit.add(nodeId);
-    return;
-  }
-  if (n.type === "narrative") { walk(n.next, scores, flags, affinity, choicesMade, endingsHit, paths); return; }
-  n.options.forEach(o => {
-    if (!optionVisible(o, affinity)) return; // 隐藏选项不满足条件则不可见
-    const sc = { ...scores };
-    if (o.scores) Object.keys(o.scores).forEach(k => sc[k] += o.scores[k]);
-    if (o.nudge) Object.keys(o.nudge).forEach(k => sc[k] += o.nudge[k]); // 平局裁判 0.5 分
-    const fl = { ...flags };
-    if (o.flags) o.flags.forEach(f => fl[f] = true);
-    const af = { ...affinity };
-    if (o.affinity) Object.keys(o.affinity).forEach(k => af[k] += o.affinity[k]);
-    walk(o.next, sc, fl, af, choicesMade + (o.scores ? 1 : 0), endingsHit, paths);
-  });
+// ---------- [2] 全路径枚举（状态合并 DP：等价于遍历所有路径，但只处理不同状态） ----------
+// 状态 = (节点, scores, affinity, 已计分选择数)。相同状态的路径合并并累计条数，
+// 因此无需真的展开 49 万条路径，几秒即可完成，结论与逐条遍历等价。
+console.log("\n[2] 全路径枚举（状态合并）+ 计分完整性");
+// 旗标不影响后续分支，只影响结局文案，因此不进入状态键；合并时取并集
+// （"某旗标在某结局下是否可点亮" 等价于 "并集中含该旗标"，判定仍精确）。
+function stateKey(s) {
+  return JSON.stringify([s.scores, s.affinity, s.choices]);
 }
-const allPaths = [];
-const endingsHit = new Set();
-walk("prologue", { E:0,I:0,S:0,N:0,T:0,F:0,J:0,P:0 }, {}, { master:0, shen:0 }, 0, endingsHit, allPaths);
+// 拓扑序（图为 DAG）
+const topo = [];
+{
+  const indeg = {};
+  STORY.forEach(n => indeg[n.id] = 0);
+  const succ = n => n.type === "narrative" ? [n.next] : n.type === "choice" ? n.options.map(o => o.next) : [];
+  STORY.forEach(n => succ(n).forEach(t => indeg[t]++));
+  const q = STORY.filter(n => indeg[n.id] === 0).map(n => n.id);
+  while (q.length) {
+    const id = q.shift();
+    topo.push(id);
+    succ(NODES[id]).forEach(t => { if (--indeg[t] === 0) q.push(t); });
+  }
+}
+ok("剧情图无环（可拓扑排序）", topo.length === STORY.length);
 
-ok("全路径遍历无死局", allPaths.length > 0);
+const layers = {};
+STORY.forEach(n => layers[n.id] = new Map());
+function addState(nodeId, st, count) {
+  const k = stateKey(st);
+  const cur = layers[nodeId].get(k);
+  if (cur) { cur.count += count; Object.keys(st.flags).forEach(f => cur.flags[f] = true); }
+  else layers[nodeId].set(k, Object.assign({}, st, { flags: Object.assign({}, st.flags), count: count }));
+}
+addState("prologue", { scores: Engine.newScores(), flags: {}, affinity: Engine.newAffinity(), choices: 0 }, 1);
+const allPaths = [];   // 终态集合（每项带 count = 到达该终态的路径条数）
+const endingsHit = new Set();
+let totalPathCount = 0;
+topo.forEach(id => {
+  const n = NODES[id];
+  layers[id].forEach(st => {
+    if (n.type === "ending") {
+      allPaths.push(Object.assign({ ending: id }, st));
+      endingsHit.add(id);
+      totalPathCount += st.count;
+    } else if (n.type === "narrative") {
+      addState(n.next, st, st.count);
+    } else {
+      n.options.forEach(o => {
+        if (!optionVisible(o, st.affinity)) return; // 隐藏选项不满足条件则不可见
+        const sc = Object.assign({}, st.scores), fl = Object.assign({}, st.flags), af = Object.assign({}, st.affinity);
+        const scored = Engine.applyOption(sc, fl, af, o);
+        addState(o.next, { scores: sc, flags: fl, affinity: af, choices: st.choices + (scored ? 1 : 0) }, st.count);
+      });
+    }
+  });
+  layers[id] = null; // 释放内存
+});
+
+ok("全路径枚举无死局", allPaths.length > 0);
 ok("四个结局均可达", endingsHit.size === 4);
 ok("任意路径计分选择数恒为 12", allPaths.every(p => p.choices === 12));
 
-const countA = allPaths.filter(p => p.ending === "endingA").length;
-const countB = allPaths.filter(p => p.ending === "endingB").length;
-const countC = allPaths.filter(p => p.ending === "endingC").length;
-const countD = allPaths.filter(p => p.ending === "endingD").length;
-console.log("  路径分布: A=" + countA + " B=" + countB + " C=" + countC + " D=" + countD);
+const countOf = id => allPaths.filter(p => p.ending === id).reduce((a, p) => a + p.count, 0);
+const countA = countOf("endingA");
+const countB = countOf("endingB");
+const countC = countOf("endingC");
+const countD = countOf("endingD");
+console.log("  路径分布: A=" + countA + " B=" + countB + " C=" + countC + " D=" + countD +
+  " （合计 " + totalPathCount + "，不同终态 " + allPaths.length + "）");
 // D 线路径占比会随 D 线内容加深而升高（分母含 D 线内部分支），
 // 改用「真实随机游玩达成率」度量稀有度（不受 D 线内部节点数影响）
 {
@@ -130,10 +161,7 @@ console.log("  路径分布: A=" + countA + " B=" + countB + " C=" + countC + " 
 
 // ---------- [3] MBTI 覆盖 ----------
 console.log("\n[3] MBTI 计算覆盖");
-function computeMBTI(s) {
-  return (s.E > s.I ? "E" : "I") + (s.S > s.N ? "S" : "N") +
-         (s.T > s.F ? "T" : "F") + (s.J > s.P ? "J" : "P");
-}
+const computeMBTI = Engine.computeCode;
 ["A", "B", "C", "D"].forEach(line => {
   const reached = new Set(allPaths.filter(p => p.ending === "ending" + line).map(p => computeMBTI(p.scores)));
   ok(line + "线覆盖全部 16 型", reached.size === 16);
@@ -239,8 +267,57 @@ endings.forEach(e => {
   });
 });
 
-// ---------- [6] 抽样 ----------
-console.log("\n[6] 抽样路径");
+// ---------- [6] 平行题库、前置回响与场景光照验证 ----------
+console.log("\n[6] 平行题库 (altOptions) · 前置回响 (preVariants) · 场景光照");
+const altNodes = STORY.filter(n => n.altText || n.altOptions);
+ok("公共线 9 道计分题均配备平行题库", altNodes.length === 9);
+altNodes.forEach(n => {
+  const sameShape = Array.isArray(n.altOptions) && n.altOptions.length === n.options.length &&
+    n.altOptions.every((ao, i) => {
+      const o = n.options[i];
+      return ao.text && ao.feedback && ao.next === o.next &&
+        JSON.stringify(ao.scores || null) === JSON.stringify(o.scores || null) &&
+        JSON.stringify(ao.flags || null) === JSON.stringify(o.flags || null) &&
+        JSON.stringify(ao.affinity || null) === JSON.stringify(o.affinity || null);
+    });
+  ok(n.id + " 平行题库与原题计分/旗标/好感/跳转完全等价", sameShape);
+});
+
+// 验证 Engine.resolveNode 在平行题库与前置旗标下的表现
+{
+  const maskAllAlt = {};
+  altNodes.forEach(n => { maskAllAlt[n.id] = true; });
+  const r0 = Engine.resolveNode(NODES["ch1"], {}, {});
+  const r1 = Engine.resolveNode(NODES["ch1"], {}, maskAllAlt);
+  ok("Engine.resolveNode 可正确切换原题与平行题库", r0.text !== r1.text && r0.options[0].text !== r1.options[0].text);
+  const s1WithFlag = Engine.resolveNode(NODES["s1"], { flag_loud: true }, {});
+  ok("Engine.resolveNode 可将 preVariants 即时回响织入正文", s1WithFlag.text.indexOf(NODES["s1"].preVariants[0].text) === 0);
+}
+
+// 验证所有 preVariants 引用的 flag 均在某处可产生
+{
+  const allFlags = new Set();
+  STORY.forEach(n => n.type === "choice" && n.options.forEach(o => (o.flags || []).forEach(f => allFlags.add(f))));
+  const badPre = [];
+  STORY.forEach(n => (n.preVariants || []).forEach(pv => { if (!allFlags.has(pv.flag)) badPre.push(n.id + ":" + pv.flag); }));
+  ok("所有 preVariants 旗标均有对应来源选项", badPre.length === 0);
+}
+
+// 验证所有节点均配置了合法的 lighting 场景光照预设
+{
+  const validLight = new Set(["foyer", "banquet", "study", "mirror", "guest", "garden", "dawn"]);
+  ok("全部节点均配置合法 lighting 场景光照", STORY.every(n => validLight.has(n.lighting)));
+}
+
+// 验证 C 线结局主体扩充后不再单薄
+{
+  const endC = NODES["endingC"];
+  const cLen = Array.from(endC.body + endC.baseText).length;
+  ok("endingC 主体正文充实（≥120 字，实际 " + cLen + " 字）", cLen >= 120);
+}
+
+// ---------- [7] 抽样 ----------
+console.log("\n[7] 抽样路径");
 // 找一条 D 线路径打印
 const dPath = allPaths.find(p => p.ending === "endingD");
 console.log("  隐藏结局样例 → MBTI: " + computeMBTI(dPath.scores) +
@@ -248,5 +325,5 @@ console.log("  隐藏结局样例 → MBTI: " + computeMBTI(dPath.scores) +
   " · 旗标: " + Object.keys(dPath.flags).slice(0, 6).join(",") + "…");
 
 console.log("\n==============================");
-console.log("通过 " + pass + " 项，失败 " + fail + " 项 · 总路径数 " + allPaths.length);
+console.log("通过 " + pass + " 项，失败 " + fail + " 项 · 总路径数 " + totalPathCount);
 process.exit(fail === 0 ? 0 : 1);

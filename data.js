@@ -2,13 +2,15 @@
 // 迷雾庄园 · MBTI 沉浸式文字游戏 —— 数据层（隐藏结局版）
 //
 // 节点类型:
-//   narrative —— 纯叙事节点, next 指向下一节点 id
+//   narrative —— 纯叙事节点, next 指向下一节点 id; 支持 preVariants(前置旗标即时回响) 与 lighting(场景光照)
 //   choice    —— 选择节点, 每个 option 含 scores(计分)/flags(旗标)/
 //                affinity(好感度)/requires(出现条件)/feedback/next
 //                noScore: true 表示剧情小支点(不计分、不进进度条)
 //                nudge: 0.5 分倾向加权(不计分、不进进度条)——
 //                四个小支点 s1-s4 各对应一个维度(E/I,S/N,T/F,J/P),
 //                在 3 题多数表决基础上细化倾向强度(如 2:1 → 2.5:1)
+//                altText + altOptions: 公共线 9 道计分题配备第 2 套平行题库，重玩时按掩码抽题，告别重复刷题
+//                preVariants: 前序选择在后续章节正文中产生即时回响，增强选择的重量
 //   ending    —— 结局节点, endingTitle / body / variants(旗标变体) / baseText
 //
 // 测量完整性: 任何路径恒经历 12 个计分选择
@@ -29,7 +31,7 @@
 const STORY = [
   // ==================== 公共线 ====================
 
-  { id: "prologue", type: "narrative", text:
+  { id: "prologue", type: "narrative", lighting: "foyer", text:
     "一封没有署名的手写邀请函，在某个落雨的清晨被塞进你的门缝。\n" +
     "信纸泛黄，墨迹犹新，只写着一句话——\n" +
     "「今夜，迷雾庄园，晚宴恭候。」\n" +
@@ -39,70 +41,123 @@ const STORY = [
     next: "ch1"
   },
 
-  { id: "ch1", type: "choice", chapter: "第一章 · 叩门", text:
+  { id: "ch1", type: "choice", chapter: "第一章 · 叩门", lighting: "foyer", text:
     "门环是一只衔环的铜狮，眼珠似乎在雾中转动。\n" +
-    "你站在门前，手心微汗。",
+    "门缝里漏出一线暖光，隐约能听见厅内杯盏相碰的轻响。你站在檐下，雨丝正顺着伞骨往下淌。",
     options: [
-      { text: "深吸一口气，双手推开大门，朗声道：「赴约者到了！」",
+      { text: "把伞收拢立在廊柱边，趁门缝未合，直接推门步入厅中自报来意。",
         scores: { E: 1 }, flags: ["flag_loud"],
-        feedback: "你的声音在空旷的门厅里回荡。远处似乎传来一阵轻笑。",
+        feedback: "门轴发出一声低沉的叹息，你的声音在空旷的门厅里回荡。二楼栏杆后似乎传来一阵极轻的笑声。",
         next: "s1" },
-      { text: "轻叩铜环三声，退后半步，静静等候。",
+      { text: "握住冰凉的铜环叩响三下，退回台阶下的阴影里，等门内人先来应门。",
         scores: { I: 1 }, flags: ["flag_quiet"],
-        feedback: "许久，门从内侧缓缓打开，却不见人影。仿佛庄园在邀请你入内。",
+        feedback: "许久，大门从内侧缓缓拉开，门后却空无一人——只有壁炉的火光在石砖上招手。",
+        next: "s1" }
+    ],
+    altText:
+      "廊下的风灯在雾气里晃动，门侧悬挂着一只铜铸的迎客钟，钟锤上却缠着半截旧丝绒。\n" +
+      "门内隐约有人声，却不知是否已经开席。",
+    altOptions: [
+      { text: "解开丝绒，拉响迎客钟——既然受邀而来，不妨让满宅都知道有客登门。",
+        scores: { E: 1 }, flags: ["flag_loud"],
+        feedback: "清越的钟声穿透夜雾，厅内的交谈声顿了一瞬，大门随即为你敞开。",
+        next: "s1" },
+      { text: "不去惊动那只铜钟，只推开虚掩的侧扉，悄无声息地融入门厅的阴影。",
+        scores: { I: 1 }, flags: ["flag_quiet"],
+        feedback: "合上门扉时几乎没有声响。你得以在任何人打量你之前，先打量这座老宅。",
         next: "s1" }
     ]
   },
 
   // ---- 小支点 s1：银相框（不计分，汇合） ----
-  { id: "s1", type: "choice", noScore: true, chapter: "门厅 · 银相框", text:
-    "门厅的壁炉上方，摆着一只银质相框——\n" +
-    "它面朝下扣着，像一页不愿被读到的日记。",
+  { id: "s1", type: "choice", noScore: true, chapter: "门厅 · 银相框", lighting: "foyer",
+    preVariants: [
+      { flag: "flag_loud", text: "余音未散，门厅两侧的烛台似乎被你的动静惊扰，火苗轻轻摇曳。" },
+      { flag: "flag_quiet", text: "你步履极轻，连地毯都没发出一丝摩擦声，整座门厅安静得能听见钟摆。" }
+    ],
+    text:
+      "门厅的壁炉上方，摆着一只银质相框——\n" +
+      "它面朝下扣着，像一页不愿被读到的日记。",
     options: [
-      { text: "趁无人注意，轻轻翻开看了一眼。",
+      { text: "趁四周无人留意，伸手将相框轻轻翻起一角。",
         flags: ["flag_frame"], nudge: { E: 0.5 },
         feedback: "相框里是一位年轻的妇人，怀里抱着襁褓中的女婴。你看罢，原样扣了回去。",
         next: "n1" },
-      { text: "没有动它——主人的东西，理应由主人来示人。",
+      { text: "目光停了一瞬便移开——主人扣下的东西，必有不欲人知的缘由。",
         affinity: { master: 1 }, nudge: { I: 0.5 },
-        feedback: "不知何时，主人已立在楼梯口，含笑注视了你这一瞬的克制。",
+        feedback: "不知何时，二楼楼梯口立着一位鬓角微霜的中年人，正含笑注视你这一瞬的克制。〔主人对你生出几分好感〕",
         next: "n1" }
     ]
   },
 
   // ---- 计分节点 n1：同赴的客人 [E/I] ----
-  { id: "n1", type: "choice", chapter: "门厅 · 同赴的客人", text:
-    "你正打量门厅，一位披深灰斗篷的客人恰好也到了。\n" +
-    "仆人引路时，他朝你微微颔首，目光在你身上停了一瞬。",
+  { id: "n1", type: "choice", chapter: "门厅 · 同赴的客人", lighting: "foyer",
+    preVariants: [
+      { flag: "flag_frame", text: "你指尖还残留着银相框冰凉的触感，身后忽然传来推门的风声。" }
+    ],
+    text:
+      "你正打量门厅，一位披深灰斗篷的客人恰好也到了。\n" +
+      "仆人引路时，他朝你微微颔首，目光在你身上停了一瞬。",
     options: [
-      { text: "迎上去攀谈：「你也收到了那封邀请函？今夜这是什么宴会？」",
+      { text: "主动与他并肩而行，借着寒暄探一探其他赴宴者的底细。",
         scores: { E: 1 }, flags: ["flag_chat"],
         feedback: "他说自己年年受邀、年年赴宴，却从未见过主人的真容。「今晚，或许会不一样。」他压低了声音。",
         next: "ch2" },
-      { text: "颔首回礼，随即移开目光，独自走向壁炉边取暖。",
+      { text: "点头致意后放慢脚步，拉开三步距离，留在壁炉边独自观察来往宾客。",
         scores: { I: 1 }, flags: ["flag_solo"],
-        feedback: "火光很好。你在心里把今夜见到的一切悄悄归了档——包括那只扣着的银相框。",
+        feedback: "火光很好。你在心里把今夜见到的一切悄悄归了档——没人注意到角落里的观察者。",
+        next: "ch2" }
+    ],
+    altText:
+      "衣帽间旁，一位披深灰斗篷的客人正拍去肩头雨珠。\n" +
+      "他手里的请柬露出一角，字迹与你收到的那封一模一样。",
+    altOptions: [
+      { text: "亮出自己的请柬上前搭话：「看来我们收到的是同一封信。」",
+        scores: { E: 1 }, flags: ["flag_chat"],
+        feedback: "他意味深长地看了你一眼：「我是这儿的常客了。但像今夜这样凑齐了人的，还是头一回。」",
+        next: "ch2" },
+      { text: "将自己的请柬收回内袋，默默记下他斗篷袖口的旧泥痕，独自走向炉火。",
+        scores: { I: 1 }, flags: ["flag_solo"],
+        feedback: "不主动暴露筹码，总是更稳妥些。炉火噼啪一声，替你掩去了视线。",
         next: "ch2" }
     ]
   },
 
-  { id: "ch2", type: "choice", chapter: "第二章 · 画中人", text:
-    "门厅正中，一幅巨大的油画在烛光下若隐若现。\n" +
-    "画中是一位身着黑裙的女子，背对着观者，望向窗外。",
+  { id: "ch2", type: "choice", chapter: "第二章 · 画中人", lighting: "foyer",
+    preVariants: [
+      { flag: "flag_chat", text: "灰斗篷客人在前引路，经过门厅正中时，脚步微不可察地顿了一下。" },
+      { flag: "flag_solo", text: "宾客们陆续入内，你独自穿过门厅，视线被正墙上的巨幅画作截住。" }
+    ],
+    text:
+      "门厅正中，一幅巨大的油画在烛光下若隐若现。\n" +
+      "画中是一位身着黑裙的女子，背对着观者，望向窗外。",
     options: [
-      { text: "凑近细看：笔触粗粝，颜料龟裂，右下角有模糊的签名与年份。",
+      { text: "走近画布半步，借烛光辨认颜料的裂纹、笔触走向与角落的落款。",
         scores: { S: 1 }, flags: ["flag_detail"],
-        feedback: "1887。画家署名已难辨认。你默默记下了这些细节。",
+        feedback: "1887。画家署名已被刮去半截，只余一道干涸的暗痕。你记下了这个年份。",
         next: "s2" },
-      { text: "站在远处凝望：她在看什么？窗外是什么，让她的背影如此落寞？",
+      { text: "退到光影交界处凝望：画家为何执意隐去她的面容，她望向的窗外又藏着什么？",
         scores: { N: 1 }, flags: ["flag_sigh"],
-        feedback: "你仿佛听见一声叹息。又或许，那只是窗外的风。",
+        feedback: "那一瞬，画中黑裙的褶皱似乎随穿堂风动了动。你仿佛听见一声极远的叹息。",
+        next: "s2" }
+    ],
+    altText:
+      "通往宴会厅的阶梯旁，悬着一幅未上清漆的旧油画。\n" +
+      "画中黑裙女子背对众人，面朝一扇画出来的、紧闭的窄窗。",
+    altOptions: [
+      { text: "检视画框接缝与画布材质：亚麻布已泛黄，右下角留着一串模糊的年份数字。",
+        scores: { S: 1 }, flags: ["flag_detail"],
+        feedback: "1887 年的画作，画框却是后来新配的。有形之物从不说谎。",
+        next: "s2" },
+      { text: "顺着画中人的视线去揣摩：一幅不画正脸的肖像，往往是在替活人守着某个执念。",
+        scores: { N: 1 }, flags: ["flag_sigh"],
+        feedback: "你不由自主地想：如果她此刻转过身来，那张脸上会是悲伤，还是释然？",
         next: "s2" }
     ]
   },
 
   // ---- 小支点 s2：等待与旧照片（不计分，汇合） ----
-  { id: "s2", type: "choice", noScore: true, chapter: "门厅 · 开席之前", text:
+  { id: "s2", type: "choice", noScore: true, chapter: "门厅 · 开席之前", lighting: "foyer", text:
     "仆人接过你的外套：「开席尚有一刻钟，客人可随意。」",
     options: [
       { text: "「领我在东廊走一走吧。」",
@@ -116,28 +171,51 @@ const STORY = [
     ]
   },
 
-  { id: "ch3", type: "choice", chapter: "第三章 · 角落里的客人", text:
-    "晚宴厅里已坐了几位客人。一位身着灰衣的客人独坐角落，指尖不停摩挲着杯沿。\n" +
-    "他抬眼与你对视一瞬，又迅速低下头。",
+  { id: "ch3", type: "choice", chapter: "第三章 · 角落里的客人", lighting: "banquet",
+    preVariants: [
+      { flag: "flag_tour", text: "从东廊折返入席时，那张焦黑旧照上的轮廓还在你脑海里挥之不去。" },
+      { flag: "flag_ade_name", text: "画框下那个「A.」的刻痕让你隐隐觉得，今夜席间必然有人为她而来。" }
+    ],
+    text:
+      "晚宴厅里已坐了几位客人。一位身着灰衣的客人独坐角落，指尖不停摩挲着杯沿。\n" +
+      "他抬眼与你对视一瞬，又迅速低下头。",
     options: [
-      { text: "径直走过去，拉开椅子坐下：「介意我坐这儿吗？」",
+      { text: "端起酒杯径直走向角落，在他身旁落座：「这儿清静，介意搭个伴吗？」",
         scores: { E: 1 }, flags: ["flag_guest"], affinity: { shen: 1 },
-        feedback: "几杯过后，他吐露来意——他姓沈，为寻一枚失散多年的银匙而来，那是他家旧物。",
+        feedback: "他先是一紧，见你神色坦然，终于低声吐露来意——他姓沈，为归还一件百年前的旧物而来。〔沈先生向你敞开了几分心扉〕",
         next: "s3" },
-      { text: "在对面坐下，安静地品一口酒，等他愿意说话时再说。",
+      { text: "选了斜对面的空位坐下，替他挡去旁人打量的视线，只安静地品酒。",
         scores: { I: 1 }, flags: ["flag_photo"],
-        feedback: "沉默中，他袖中滑落一张泛黄照片，飘到你脚边——照片上，正是门厅那幅画中的女子。他慌忙拾起，一言不发。",
+        feedback: "许是感激你的分寸，他取手帕时袖中滑落一张泛黄旧照——正是门厅画中那位女子。他慌忙拾起，朝你苦笑了一下。",
+        next: "s3" }
+    ],
+    altText:
+      "长桌末席坐着一位神色局促的灰衣人，面前只摆着一杯清水，双手始终按在衣袋上，像护着什么易碎的东西。\n" +
+      "察觉你的目光，他下意识往暗处缩了缩。",
+    altOptions: [
+      { text: "主动过去替他添上半杯温酒，低声开启话头，帮他卸下满身戒备。",
+        scores: { E: 1 }, flags: ["flag_guest"], affinity: { shen: 1 },
+        feedback: "温酒入喉，他紧绷的肩线松了下来，低声说自己姓沈，今夜是来替先人还债的。〔沈先生向你敞开了几分心扉〕",
+        next: "s3" },
+      { text: "不着痕迹地收回目光，隔着两席坐下，留给他一处不被追问的安静角落。",
+        scores: { I: 1 }, flags: ["flag_photo"],
+        feedback: "暗中观察总能看到更多：他松开衣袋那瞬，一张泛黄的女子旧照滑落脚边，背影与门厅油画如出一辙。",
         next: "s3" }
     ]
   },
 
   // ---- 小支点 s3：致辞（不计分，汇合） ----
-  { id: "s3", type: "choice", noScore: true, chapter: "晚宴 · 致辞", text:
-    "主人举杯致辞，欢迎远来的客人。烛光里，人人举杯。",
+  { id: "s3", type: "choice", noScore: true, chapter: "晚宴 · 致辞", lighting: "banquet",
+    preVariants: [
+      { flag: "flag_guest", text: "你与沈先生低语间，主席上的烛台依次亮起。" },
+      { flag: "flag_photo", text: "那张滑落又被慌忙收起的旧照，让你对主席上即将开口的人多了几分留意。" }
+    ],
+    text:
+      "主人举杯致辞，欢迎远来的客人。烛光里，人人举杯。",
     options: [
       { text: "恰如其分地举杯回应，接一句得体的祝词。",
         affinity: { master: 1 }, nudge: { F: 0.5 },
-        feedback: "主人向你微微颔首。你与这座庄园，仿佛一瞬间熟稔了几分。",
+        feedback: "主人向你微微颔首，目光里多了一分温和的赞许。〔主人对你生出几分好感〕",
         next: "n2" },
       { text: "举杯的同时，眼角留意到那位沈先生没有喝——他在低声念一个名字。",
         flags: ["flag_ade_name"], nudge: { T: 0.5 },
@@ -147,103 +225,178 @@ const STORY = [
   },
 
   // ---- 计分节点 n2：席间的银匙传闻 [S/N] ----
-  { id: "n2", type: "choice", chapter: "晚宴 · 银匙的传闻", text:
+  { id: "n2", type: "choice", chapter: "晚宴 · 银匙的传闻", lighting: "banquet", text:
     "上菜间隙，邻座压低声音闲谈：\n" +
     "「听说这座庄园的银器，一百年来件件点验、从没短过一枚。」\n" +
     "「可我在城里听到的说法是——恰恰短过一枚，短得蹊跷。」",
     options: [
-      { text: "记下两句话里确凿的信息：银器有账可查，年月可考。答案在账簿里。",
+      { text: "低头核对席间银器的编号与制式——传言虚实难辨，器物与账册不会说谎。",
         scores: { S: 1 }, flags: ["flag_ledger"],
-        feedback: "你默默数着上菜的件数。宴席的银器摆在明处，账目藏在暗处——想去暗处，得先有个名目。",
+        feedback: "你手边这柄银叉底部刻着「V·1885」。只要能进书房查对旧账，缺没缺过一望便知。",
         next: "ch4" },
-      { text: "这两个说法矛盾——而矛盾之处，往往就是故事真正开始的地方。",
+      { text: "把两句互相抵牾的话连起来想：若真短过一枚，主人为何对外宣称件件俱全？",
         scores: { N: 1 }, flags: ["flag_rumor"],
-        feedback: "你望向角落里摩挲着杯沿的沈先生。他袖口露出一角旧布，针脚是上世纪的绣法。",
+        feedback: "你望向角落里摩挲杯沿的沈先生。一个替人遮掩了一百年的谎，往往比失窃本身更重。",
+        next: "ch4" }
+    ],
+    altText:
+      "侍者撤下前菜银盘时，盘底露出一道浅浅的铭文刻痕。\n" +
+      "席间有人低声议论起百年前那桩众说纷纭的「银器失窃案」。",
+    altOptions: [
+      { text: "借擦拭餐刀的动作，细看银盘底部的工坊戳记与编号序列是否连贯。",
+        scores: { S: 1 }, flags: ["flag_ledger"],
+        feedback: "第十三号与第十五号之间空了一格。确凿的缺口，胜过满桌道听途说。",
+        next: "ch4" },
+      { text: "不去管银盘上的字，反而留心主人在听到「失窃」二字时，指尖微不可察的停顿。",
+        scores: { N: 1 }, flags: ["flag_rumor"],
+        feedback: "那不是失主提起窃贼的神情——倒像是在等一个迟到太久的故人。",
         next: "ch4" }
     ]
   },
 
-  { id: "ch4", type: "choice", chapter: "第四章 · 被涂黑的地图", text:
-    "主人递来一张泛黄的庄园平面图，标注着各房间的用途。\n" +
-    "但你注意到，图上有几处被墨水刻意涂黑。",
+  { id: "ch4", type: "choice", chapter: "第四章 · 被涂黑的地图", lighting: "banquet",
+    preVariants: [
+      { flag: "flag_ledger", text: "银器编号的缺口还在你心里记着，主人已命仆人呈上另一件旧物。" },
+      { flag: "flag_rumor", text: "席间的窃窃私语渐歇，主人却像看穿了众人的好奇，主动取出了一张旧图。" }
+    ],
+    text:
+      "主人递来一张泛黄的庄园平面图，标注着各房间的用途。\n" +
+      "但你注意到，图上有几处被墨水刻意涂黑。",
     options: [
-      { text: "记下每个开放房间的位置与陈设，规划一条合理的参观路线。",
+      { text: "对照门厅与宴会厅的实际方位，先把已开放的回廊与楼梯走向在脑中校准。",
         scores: { S: 1 }, flags: ["flag_map"],
-        feedback: "你心中有了一张清晰的地图。秩序让你安心。",
+        feedback: "实地与图纸严丝合缝。无论今夜发生什么，你至少清楚每一条退路。",
         next: "n3" },
-      { text: "盯着涂黑处出神——西翼尽头、后园井台、还有一处标注被反复涂抹的房间。",
+      { text: "目光越过所有明处的标注，只锁定那三块墨迹：西翼尽头、后园井台、半间旧卧室。",
         scores: { N: 1 }, flags: ["flag_black"],
-        feedback: "主人递图的手停了一瞬。你若无其事地移开视线，却把这些位置刻进了心里。",
+        feedback: "主人递图的手停了一瞬。被刻意抹去的地方，才是这张图真正想说话的地方。",
+        next: "n3" }
+    ],
+    altText:
+      "餐后茶点端上时，每人的骨瓷碟下都压着一张手绘的庄园导览卡。\n" +
+      "卡片边缘有几处被浓墨涂改的痕迹，透着一股欲盖弥彰的意味。",
+    altOptions: [
+      { text: "折好导览卡收进衣袋，按图上标明的房间尺寸与步数，估算从宴会厅到各处的距离。",
+        scores: { S: 1 }, flags: ["flag_map"],
+        feedback: "数字与结构给你底气。这座老宅再大，也不过是一座砖石搭成的屋宇。",
+        next: "n3" },
+      { text: "借着烛光从纸背透视墨迹下的原字——试图拼出那些被主人亲手划掉的地名。",
+        scores: { N: 1 }, flags: ["flag_black"],
+        feedback: "你隐约辨出一个「井」字。墨迹越浓，底下的旧事就越深。",
         next: "n3" }
     ]
   },
 
   // ---- 计分节点 n3：烛火与穿堂风 [T/F] ----
-  { id: "n3", type: "choice", chapter: "晚宴 · 烛火与穿堂风", text:
+  { id: "n3", type: "choice", chapter: "晚宴 · 烛火与穿堂风", lighting: "banquet", text:
     "一阵穿堂风掠过长桌，烛火齐齐矮了半寸。\n" +
     "邻座的年轻女客握紧了披肩，低声说了句什么。满座的谈笑仍在继续。",
     options: [
-      { text: "起身去掩半开的侧门——风从那里来，问题就该在那里解决。",
+      { text: "离席两步，去将漏风的侧门合拢落闩——切断风源，比寒暄更管用。",
         scores: { T: 1 }, flags: ["flag_wind_t"],
-        feedback: "门轴轻响，烛火重新立直。女客向你投来感激的一瞥，你摆摆手：只是顺手。",
+        feedback: "门轴轻响，烛火重新立直。女客向你投来感激的一瞥，你只点点头坐回原位。",
         next: "ch5" },
-      { text: "隔着半个长桌，向她递去一个温和的眼神：这座老宅子，夜里就是这样。",
+      { text: "将手边温着的红茶往她那边推过半寸，隔桌递去一个安抚的眼神。",
         scores: { F: 1 }, flags: ["flag_wind_f"],
-        feedback: "她回以一个放松下来的笑。有些安慰不需要走过去，一个眼神就够。",
+        feedback: "她紧绷的指尖松开了，冲你轻轻一笑。在这座陌生的老宅里，一点善意比炭火更暖。",
+        next: "ch5" }
+    ],
+    altText:
+      "夜风忽然撞开一扇高窗，冷雨星子飘进长桌，吹得主烛摇摇欲灭。\n" +
+      "邻座披肩单薄的年轻女客打了个寒颤，欲言又止。",
+    altOptions: [
+      { text: "挪动桌上的高脚银烛台替烛火挡住风口，同时示意侍者去关紧高窗。",
+        scores: { T: 1 }, flags: ["flag_wind_t"],
+        feedback: "风停火稳，席间恢复如常。女客暗暗松了口气，偷偷打量着你的侧影。",
+        next: "ch5" },
+      { text: "轻声同她搭一句话：「老宅的夜风硬，靠近壁炉那侧会暖和些。」",
+        scores: { F: 1 }, flags: ["flag_wind_f"],
+        feedback: "她眼里的局促消融了大半，低声道了谢。被照顾到的感觉，能让人忘掉窗外的冷雨。",
         next: "ch5" }
     ]
   },
 
-  { id: "ch5", type: "choice", chapter: "第五章 · 碎瓷", effect: "shatter", text:
+  { id: "ch5", type: "choice", chapter: "第五章 · 碎瓷", effect: "shatter", lighting: "banquet", text:
     "席间，那位沈先生起身时，袖口带倒了主人的珍藏瓷瓶。\n" +
     "瓷瓶坠地，碎成数片。满座寂静。他的脸霎时惨白。",
     options: [
-      { text: "先扶起那位脸色苍白的客人，轻声说：「没关系，人没事就好。」",
+      { text: "第一时间上前扶住他发抖的手臂，挡开众人的目光：「瓷器易碎，人没伤着要紧。」",
         scores: { F: 1 }, flags: ["flag_mercy"],
-        feedback: "他眼眶泛红，紧紧握了握你的手。主人望着碎片，若有所思。",
+        feedback: "他眼眶泛红，重重握了握你的手。主人在一旁望着碎片，神色莫名。",
         next: "s4" },
-      { text: "蹲下身清点碎片，向主人估算价值，思忖合理的赔偿方案。",
+      { text: "俯身检视瓷片断口与底款，冷静向主人开口，先厘清器物年代与修补、赔偿的章程。",
         scores: { T: 1 }, flags: ["flag_logic"], affinity: { master: 1 },
-        feedback: "主人俯身与你一同收拾，低声道：「你是个讲理的人。」",
+        feedback: "主人俯身与你一同拾起底款，低声道：「难得有客人在乱处还讲分寸。」〔主人对你生出几分好感〕",
+        next: "s4" }
+    ],
+    altText:
+      "长桌尽头忽起一声脆响——沈先生起身过于仓促，衣摆扫落了壁架上的青花旧瓶。\n" +
+      "碎片溅到地毯中央，满堂宾客的目光齐刷刷刺向他。他僵在原地，指尖发白。",
+    altOptions: [
+      { text: "走过去替他拾起脚边最扎眼的一片，温言解围：「光线暗，换作谁都难免失手。」",
+        scores: { F: 1 }, flags: ["flag_mercy"],
+        feedback: "那句体谅像一根浮木。沈先生深深看了你一眼，嘴唇动了动，终究把愧疚咽回肚里。",
+        next: "s4" },
+      { text: "上前将大块瓷片按裂纹比对归拢，平静向主人建言：「主纹未损，寻良匠锔补尚可复原。」",
+        scores: { T: 1 }, flags: ["flag_logic"], affinity: { master: 1 },
+        feedback: "主人眼中掠过一丝讶异与赞赏：「先生好眼力，倒省了一场无谓的惶恐。」〔主人对你生出几分好感〕",
         next: "s4" }
     ]
   },
 
   // ---- 小支点 s4：僵局（不计分，汇合） ----
-  { id: "s4", type: "choice", noScore: true, chapter: "晚宴 · 僵局", text:
-    "风波之后，沈先生执意照价赔钱，主人摆手不收。\n" +
-    "两人僵持不下，席间的烛火都仿佛低了半寸。",
+  { id: "s4", type: "choice", noScore: true, chapter: "晚宴 · 僵局", lighting: "banquet",
+    preVariants: [
+      { flag: "flag_mercy", text: "因你方才的解围，沈先生总算稳住了心神，却仍执拗地不肯坐下。" },
+      { flag: "flag_logic", text: "瓷片虽已归拢，沈先生看着桌上的裂痕，神色间仍满是不安。" }
+    ],
+    text:
+      "风波之后，沈先生执意照价赔钱，主人摆手不收。\n" +
+      "两人僵持不下，席间的烛火都仿佛低了半寸。",
     options: [
       { text: "出言打圆场——提议让沈先生以帮工抵偿，比如帮忙整理书房旧档。",
         affinity: { shen: 1 }, nudge: { P: 0.5 },
-        feedback: "两位同时看向你，僵局就此化开。沈先生向你投来感激的一瞥。",
+        feedback: "两位同时看向你，僵局就此化开。沈先生向你投来由衷感激的一瞥。〔沈先生对你的信任更深了〕",
         next: "n4" },
       { text: "不再多言，尊重主人的处置。",
         affinity: { master: 1 }, nudge: { J: 0.5 },
-        feedback: "主人摆手唤来仆人收拾碎片。他欣赏懂得分寸的客人。",
+        feedback: "主人摆手唤来仆人收拾碎片，朝你投来心照不宣的一瞥。〔主人愈发欣赏你的分寸〕",
         next: "n4" }
     ]
   },
 
   // ---- 计分节点 n4：宴散之前 [J/P] ----
-  { id: "n4", type: "choice", chapter: "晚宴 · 宴散之前", text:
+  { id: "n4", type: "choice", chapter: "晚宴 · 宴散之前", lighting: "banquet", text:
     "宴散之前，主人举最后一轮酒：「夜还长，各位——\n" +
     "今夜留下的客人，随意；想早些歇息的，也随意。」\n" +
     "你握着酒杯，指尖在杯壁上轻轻一叩。",
     options: [
-      { text: "在心里把这一晚理了一遍：见过的、听过的、待解的——把今晚该做的想清楚。",
+      { text: "在心里把今晚散落的线索逐一归位——画、账、地图、沈先生，先定好下半夜要印证哪一桩。",
         scores: { J: 1 }, flags: ["flag_plan"],
-        feedback: "画、账、门、沈先生——四条线索在你心里排成一列。你知道自己接下来要做什么。",
+        feedback: "脉络既清，步子便不会乱。你已经知道待会儿主人起身时自己该往哪儿走。",
         next: "ch6" },
-      { text: "且饮且看。今夜还长，何必急着给夜晚定好走向——让它自己来。",
+      { text: "把杯中残酒一饮而尽，不预设去处——看哪盏灯先亮、哪扇门先开，便往哪里走。",
         scores: { P: 1 }, flags: ["flag_flow"],
-        feedback: "你把杯中残酒缓缓饮尽。夜色像一条不急着到站的河，你把自己交给了它。",
+        feedback: "夜色像一条不急着到站的河。正因不曾赶路，你反而留意到了身旁仆人欲言又止的眼神。",
+        next: "n5" }
+    ],
+    altText:
+      "座钟敲过十一下，侍者开始撤去酒具。\n" +
+      "长桌上的宾客各怀心事，下半夜的走向悬而未决。",
+    altOptions: [
+      { text: "趁众人未散，先在脑中排定先后次序：哪处疑问最要紧，就直奔哪处去求个水落石出。",
+        scores: { J: 1 }, flags: ["flag_plan"],
+        feedback: "今夜只剩最后几个时辰，有章法的人从不把时间浪费在犹豫上。",
+        next: "ch6" },
+      { text: "斜倚椅背慢饮残茶，任凭局势自己发酵——兴许最要紧的线索，会自己找上门来。",
+        scores: { P: 1 }, flags: ["flag_flow"],
+        feedback: "你没有急着起身。果然，撤盘的仆人在你身侧停下脚步，借着添水的工夫压低了嗓音。",
         next: "n5" }
     ]
   },
 
   // ---- 过场叙事 n5：仆人低语（不分支，不增加路径数；交代"为何是今夜"并给女客与说书人落点） ----
-  { id: "n5", type: "narrative", chapter: "晚宴 · 仆人低语", text:
+  { id: "n5", type: "narrative", chapter: "晚宴 · 仆人低语", lighting: "banquet", text:
     "仆人俯身替你续水，声音压得很低：\n" +
     "「今年是第一百个年头，所以维恩先生亲自出面。往年他从不见客，只让那位说书人替他致辞。」\n" +
     "他朝长桌那头努了努嘴：\n" +
@@ -252,11 +405,16 @@ const STORY = [
   },
 
   // ---- 分流节点：三选一 + 隐藏选项（不计分） ----
-  { id: "ch6", type: "choice", noScore: true, chapter: "第六章 · 主人的提议", text:
-    "宴罢，烛火渐低。主人站起身，环视众人，最后目光落在你身上：\n" +
-    "「夜还长。书房里有庄园的旧账与日志，愿意听故事的人，随我来；\n" +
-    "长廊尽头有一扇门——今晚，它虚掩着；\n" +
-    "若倦了，客房在二楼。黎明前，请务必回到自己的房间。」",
+  { id: "ch6", type: "choice", noScore: true, chapter: "第六章 · 主人的提议", lighting: "banquet",
+    preVariants: [
+      { flag: "flag_plan", text: "你早已理清了今夜的脉络，只等主人开口。" },
+      { flag: "flag_flow", text: "仆人方才那番低语还在耳畔回响，主席上的维恩先生已经站起身来。" }
+    ],
+    text:
+      "宴罢，烛火渐低。主人站起身，环视众人，最后目光落在你身上：\n" +
+      "「夜还长。书房里有庄园的旧账与日志，愿意听故事的人，随我来；\n" +
+      "长廊尽头有一扇门——今晚，它虚掩着；\n" +
+      "若倦了，客房在二楼。黎明前，请务必回到自己的房间。」",
     options: [
       { text: "随主人步入书房。",
         feedback: "主人微微颔首，提起烛台。书房的门在你们身后合拢。",
@@ -277,70 +435,80 @@ const STORY = [
 
   // ==================== A线 · 书房（真相之夜） ====================
 
-  { id: "A0", type: "narrative", chapter: "书房", text:
-    "书房四壁皆书，壁炉的火光把两个人的影子投得很长。\n" +
-    "主人取出一册皮面日志，封皮烫着 1887 的字样。\n" +
-    "「这本日志，只在有人愿意听的时候才打开。」",
+  { id: "A0", type: "narrative", chapter: "书房", lighting: "study",
+    preVariants: [
+      { flag: "flag_ledger", text: "你在席间留意过银器编号的缺口。进门时，你的目光第一时间掠过书架底层那排厚重的银器账册。" },
+      { flag: "flag_logic", text: "主人将烛台搁在桌上：「方才在席间看你处置碎瓷，便知你是能听真话的人。」" }
+    ],
+    text:
+      "书房四壁皆书，壁炉的火光把两个人的影子投得很长。\n" +
+      "主人取出一册皮面日志，封皮烫着 1887 的字样。\n" +
+      "「这本日志，只在有人愿意听的时候才打开。」",
     next: "A1"
   },
 
-  { id: "A1", type: "choice", chapter: "书房 · 日志", text:
+  { id: "A1", type: "choice", chapter: "书房 · 日志", lighting: "study", text:
     "「你想知道这座庄园的真相吗？」他翻开第一页，忽然停住，\n" +
     "「我必须提醒你——它并不令人愉快。」",
     options: [
-      { text: "「请直言。我需要事实，无论好坏。」",
+      { text: "「请直言。既然进了这扇门，我要的便是完整的事实。」",
         scores: { T: 1 }, flags: ["flag_truth_t"],
         feedback: "他点点头，眼神里多了一分敬重。",
         next: "A2" },
-      { text: "「如果它会伤害谁……也许善意的沉默更好。」",
+      { text: "「若有些旧伤揭开只是徒增痛楚……您可以只讲您愿意讲的部分。」",
         scores: { F: 1 }, flags: ["flag_truth_f"],
-        feedback: "他凝视你片刻，轻叹：「那么，我只讲愿意被讲出的部分。」",
+        feedback: "他凝视你片刻，轻叹：「谢谢。但有些事搁了一百年，也该见见光了。」",
         next: "A2" }
     ]
   },
 
-  { id: "A2", type: "narrative", chapter: "书房 · 真相", text:
-    "1887 年冬，庄园主人的独女艾德琳，在后园井台救起一名偷银器抵债的少年仆人。\n" +
-    "井台结着薄冰。她救起了他，自己却再没能上来。\n" +
-    "那少年此后远走他乡，一生赎罪。他的姓氏，是沈。\n" +
-    "今夜，是她离开的第一百个冬天。\n" +
-    "——今晚坐在角落里的沈先生，带来了一枚银匙：当年被追回的那枚。\n" +
-    "他不是来偷的。他是来还的。\n" +
-    "门厅那幅画，是艾德琳的母亲请人画的。画家从没见过她的正脸，\n" +
-    "只能凭生前的旧照，画下一个背影。",
+  { id: "A2", type: "narrative", chapter: "书房 · 真相", lighting: "study",
+    preVariants: [
+      { flag: "flag_truth_t", text: "主人不再略过任何细节，连当年账册上的涂改页码都一并摊开在你面前。" },
+      { flag: "flag_truth_f", text: "主人的声音放得很轻，像怕惊扰了屋檐下沉睡的旧人。" }
+    ],
+    text:
+      "1887 年冬，庄园主人的独女艾德琳，在后园井台救起一名偷银器抵债的少年仆人。\n" +
+      "井台结着薄冰。她救起了他，自己却再没能上来。\n" +
+      "那少年此后远走他乡，一生赎罪。他的姓氏，是沈。\n" +
+      "今夜，是她离开的第一百个冬天。\n" +
+      "——今晚坐在角落里的沈先生，带来了一枚银匙：当年被追回的那枚。\n" +
+      "他不是来偷的。他是来还的。\n" +
+      "门厅那幅画，是艾德琳的母亲请人画的。画家从没见过她的正脸，\n" +
+      "只能凭生前的旧照，画下一个背影。",
     next: "A3"
   },
 
-  { id: "A3", type: "choice", chapter: "书房 · 日志", text:
+  { id: "A3", type: "choice", chapter: "书房 · 日志", lighting: "study", text:
     "主人合上日志：「这册子跟了庄园一百年。你说，该如何处置？」",
     options: [
-      { text: "「让我通读全册，按年份整理成编年，留给后来的人。」",
+      { text: "「交给我通读全册吧，按年份与人名重新编目，立一卷可查的铁案。」",
         scores: { J: 1 }, flags: ["flag_chronicle"],
-        feedback: "你们就着烛火，一页页读到东方泛白。",
+        feedback: "你们就着烛火，一页页校对到东方泛白。",
         next: "A4" },
-      { text: "「今夜讲给我听就好。故事活在讲述里，比档案更长久。」",
+      { text: "「不必封存成档。今夜您讲给我听，往后它活在口耳相传里，比纸页更长久。」",
         scores: { P: 1 }, flags: ["flag_oral"],
         feedback: "他笑了——那是今晚主人第一次笑。炉火噼啪作响，像在应和。",
         next: "A4" }
     ]
   },
 
-  { id: "A4", type: "choice", chapter: "黎明 · 廊下", text:
+  { id: "A4", type: "choice", chapter: "黎明 · 廊下", lighting: "dawn", text:
     "黎明前，主人送你到廊下，掌心摊着那枚从沈先生处收下的银匙。\n" +
     "「带走它，或者，让它留在它该在的地方。」",
     options: [
-      { text: "「留在庄园。让过去归于过去。」",
+      { text: "「留在庄园吧。旧物归原主，这一页才算真正合上。」",
         scores: { J: 1 }, flags: ["flag_return"],
         feedback: "银匙被轻轻放回陈列柜，与那册日志并排。尘埃落定。",
         next: "endingA" },
-      { text: "「我带走它。它会提醒我，这一夜并非虚构。」",
+      { text: "「我带走它。让它走出这座困了一百年的宅子，去见见外头的风。」",
         scores: { P: 1 }, flags: ["flag_keep"],
         feedback: "银匙贴着掌心，微凉。像一段被握住的历史。",
         next: "endingA" }
     ]
   },
 
-  { id: "endingA", type: "ending",
+  { id: "endingA", type: "ending", lighting: "dawn",
     endingTitle: "结局一 · 真相之夜",
     body:
       "天光漫进窗棂时，你在客房小睡了两个时辰，醒来时日头已高。\n" +
@@ -368,30 +536,35 @@ const STORY = [
 
   // ==================== B线 · 蓝门（门后） ====================
 
-  { id: "B0", type: "narrative", chapter: "长廊尽头", tint: "blue", text:
-    "长廊尽头，蓝光从门缝里渗出来，像水，又像呼吸。\n" +
-    "你伸出手——门竟应手而开，\n" +
-    "仿佛它虚掩了一百年，只为等你今夜的路过。",
+  { id: "B0", type: "narrative", chapter: "长廊尽头", tint: "blue", lighting: "mirror",
+    preVariants: [
+      { flag: "flag_sigh", text: "你在门厅凝望油画时听见的那声叹息，此刻仿佛又从长廊尽头幽幽传来。" },
+      { flag: "flag_black", text: "这就是地图上被浓墨涂黑的西翼尽头——墨迹之下的地方，正渗出幽蓝的光。" }
+    ],
+    text:
+      "长廊尽头，蓝光从门缝里渗出来，像水，又像呼吸。\n" +
+      "你伸出手——门竟应手而开，\n" +
+      "仿佛它虚掩了一百年，只为等你今夜的路过。",
     next: "B1"
   },
 
-  { id: "B1", type: "choice", chapter: "门后 · 镜厅", tint: "blue", text:
+  { id: "B1", type: "choice", chapter: "门后 · 镜厅", tint: "blue", lighting: "mirror", text:
     "门后是一座镜厅。无数面镜子彼此相对，烛光在其中折出无穷无尽的回廊。\n" +
     "正中立着一个背影——黑裙，望向无窗的远处。\n" +
     "是画中的女子。",
     options: [
-      { text: "冷静下来。观察镜厅的构造与光的走向，寻找幻象的破绽和真实的出口。",
+      { text: "压下心头惊悸，先看镜面夹角与光源位置——搞清这重重影子里哪一处才是实体。",
         scores: { T: 1 }, flags: ["flag_observe"],
         feedback: "你注意到：所有的镜子里，都没有烛台本身。",
         next: "B2" },
-      { text: "心口一酸，你轻声唤了她一声——尽管你根本不知道她的名字。",
+      { text: "顾不上分辨虚实，怕她下一瞬便散进镜雾里，轻声向那个孤寂的背影开口。",
         scores: { F: 1 }, flags: ["flag_call"],
         feedback: "她没有回头。但镜中无穷的回廊里，每一层光影都随之轻轻晃了晃。",
         next: "B2" }
     ]
   },
 
-  { id: "B2", type: "narrative", chapter: "门后 · 她说", tint: "blue", text:
+  { id: "B2", type: "narrative", chapter: "门后 · 她说", tint: "blue", lighting: "mirror", text:
     "她缓缓转过身来。面容比画上的背影更年轻，眉眼间凝着一层薄雾。\n" +
     "「这里是**被记住的地方**。」她说。声音像雪落在雪上。\n" +
     "「每一个循着光进来的人，都带着自己的夜晚。」",
@@ -399,7 +572,7 @@ const STORY = [
   },
 
   // ---- B线小支点 Bs1：涂黑的房间（不计分，回收第四章地图伏笔） ----
-  { id: "Bs1", type: "choice", noScore: true, chapter: "门后 · 被涂黑的房间", tint: "blue", text:
+  { id: "Bs1", type: "choice", noScore: true, chapter: "门后 · 被涂黑的房间", tint: "blue", lighting: "mirror", text:
     "镜厅的最深处，一排镜子的缝隙里，藏着一扇只有半人高的小门。\n" +
     "门楣上的标注被人用墨水反复涂抹过——和地图上那处一模一样。\n" +
     "她顺着你的目光看去，轻轻抿了抿唇。",
@@ -415,36 +588,36 @@ const STORY = [
     ]
   },
 
-  { id: "B3", type: "choice", chapter: "门后 · 她问", tint: "blue", text:
+  { id: "B3", type: "choice", chapter: "门后 · 她问", tint: "blue", lighting: "mirror", text:
     "「告诉我，」她偏着头看你，「你为何而来？」",
     options: [
-      { text: "「我来寻找答案。这座庄园、这幅画、被涂黑的地图——我想弄明白。」",
+      { text: "「为了把散落的谜底拼完整——这幅画、那枚银匙，还有你被抹去的名字。」",
         scores: { J: 1 }, flags: ["flag_answer"],
         feedback: "她微笑：「和一百年前那些讲道理的人一样。」",
         next: "B4" },
-      { text: "「我不知道。门开着，我就进来了。」",
+      { text: "「说不上来。只是看见长廊尽头有光，便顺着光走到了这里。」",
         scores: { P: 1 }, flags: ["flag_wander"],
         feedback: "她笑了，笑声很轻：「和一百年前的我，一模一样。」",
         next: "B4" }
     ]
   },
 
-  { id: "B4", type: "choice", chapter: "门后 · 黎明前", tint: "blue", text:
+  { id: "B4", type: "choice", chapter: "门后 · 黎明前", tint: "blue", lighting: "mirror", text:
     "她向你伸出手。掌心向上，空无一物，又仿佛盛着所有夜晚。\n" +
     "「黎明将至。记住我，或者忘记我。都可以。」",
     options: [
-      { text: "记住。回到门这一侧，把她的故事写下来、讲出去。",
+      { text: "退回门槛这一侧，把今夜所见一字不落地记下——总得有人替她作证。",
         scores: { J: 1 }, flags: ["flag_write"],
         feedback: "你在她掌心放上一枚从口袋摸出的铜币——你也不知道自己为何带着它。",
         next: "endingB" },
-      { text: "忘记。走进蓝光深处，让这一夜成为一场没有醒来的梦。",
+      { text: "伸手覆上她的掌心，任由蓝光漫过眼帘——既是梦境，何必急着醒来。",
         scores: { P: 1 }, flags: ["flag_dream"],
         feedback: "你握住她的手。很凉，又很暖。蓝光漫过你的眼睛。",
         next: "endingB" }
     ]
   },
 
-  { id: "endingB", type: "ending", tint: "blue",
+  { id: "endingB", type: "ending", tint: "blue", lighting: "mirror",
     endingTitle: "结局二 · 门后",
     body:
       "长廊的烛火只剩最后一截。晨光已经站在窗棂上。",
@@ -471,15 +644,20 @@ const STORY = [
 
   // ==================== C线 · 回房（过客） ====================
 
-  { id: "C0", type: "narrative", chapter: "客房 · 夜", text:
-    "你道过晚安，沿楼梯上到二楼客房。\n" +
-    "房间干净，壁炉有余温，窗外的雾像一片安静的海。\n" +
-    "床头柜上不知谁放了一杯温水。你道了声谢——不知道在对谁说。",
+  { id: "C0", type: "narrative", chapter: "客房 · 夜", lighting: "guest",
+    preVariants: [
+      { flag: "flag_map", text: "凭着在席间记熟的平面图，你没费什么周折便找到了二楼东侧的客房。" },
+      { flag: "flag_solo", text: "终于离了宴席的人声，客房里的炉火与清静让你松了一口气。" }
+    ],
+    text:
+      "你道过晚安，沿楼梯上到二楼客房。\n" +
+      "房间干净，壁炉有余温，窗外的雾像一片安静的海。\n" +
+      "床头柜上不知谁放了一杯温水。你道了声谢——不知道在对谁说。",
     next: "Cs1"
   },
 
   // ---- C线小支点 Cs1：温水与墙纸（不计分） ----
-  { id: "Cs1", type: "choice", noScore: true, chapter: "客房 · 温水", text:
+  { id: "Cs1", type: "choice", noScore: true, chapter: "客房 · 温水", lighting: "guest", text:
     "水杯还冒着热气——放杯子的人，刚走不久。\n" +
     "壁炉旁的墙纸有一道接缝，比别处新，像是后来补过的。",
     options: [
@@ -494,21 +672,21 @@ const STORY = [
     ]
   },
 
-  { id: "C1", type: "choice", chapter: "客房 · 夜半", text:
+  { id: "C1", type: "choice", chapter: "客房 · 夜半", lighting: "guest", text:
     "半夜，你在似睡非睡间，听见走廊里有极轻的脚步声，来去两趟。",
     options: [
-      { text: "分析：时辰、方向、步频——多半是仆人巡夜。翻个身，继续睡。",
+      { text: "凝神默数脚步的间隔与轻重：步幅稳健、未在房门前逗留——是守夜人巡廊，无须惊动。",
         scores: { T: 1 }, flags: ["flag_calm"],
         feedback: "步声在门口停了一瞬，又远了。你的推断……大概是对的。",
         next: "C2" },
-      { text: "心里莫名惦记起那位沈先生——不知他的银匙寻到没有，今晚睡得可安稳。",
+      { text: "披衣望向门缝漏进的微光，心里牵挂起席间失手的沈先生，不知他今夜可曾安寝。",
         scores: { F: 1 }, flags: ["flag_worry"],
         feedback: "你在心里替他祝了一句晚安。说来奇怪，之后睡得格外沉。",
         next: "C2" }
     ]
   },
 
-  { id: "C2", type: "narrative", chapter: "客房 · 梦与晨", text:
+  { id: "C2", type: "narrative", chapter: "客房 · 梦与晨", lighting: "guest", text:
     "梦很深。梦里似有人替你掖了掖被角，\n" +
     "还有一阵很远的、井台边的风声。\n" +
     "天亮得出奇干脆。",
@@ -516,7 +694,7 @@ const STORY = [
   },
 
   // ---- C线小支点 Cs2：门外的托盘（不计分，回收夜半脚步声） ----
-  { id: "Cs2", type: "choice", noScore: true, chapter: "客房 · 晨", text:
+  { id: "Cs2", type: "choice", noScore: true, chapter: "客房 · 晨", lighting: "dawn", text:
     "晨光里，门外放着一只托盘：热茶、面包，和一张折成四折的字条。",
     options: [
       { text: "展开字条，看完后小心夹进随身的笔记里。",
@@ -530,38 +708,41 @@ const STORY = [
     ]
   },
 
-  { id: "C3", type: "choice", chapter: "门廊 · 别", text:
+  { id: "C3", type: "choice", chapter: "门廊 · 别", lighting: "dawn", text:
     "清晨，主人亲自送到门廊，问：「可还愿再来？」",
     options: [
-      { text: "「若再受邀，我会提前安排好行程。」",
+      { text: "「若明年此时还有请柬，我会提前空出日程，准时赴约。」",
         scores: { J: 1 }, flags: ["flag_promise"],
         feedback: "主人颔首：「守约的人，门永远为他开着。」",
         next: "C4" },
-      { text: "「谁知道呢。也许某个雨夜，我又出现在门口。」",
+      { text: "「不必定死日子。哪天夜雨恰好路过，我再来讨一杯温水。」",
         scores: { P: 1 }, flags: ["flag_maybe"],
         feedback: "主人笑了：「那样的客人，庄园最喜欢。」",
         next: "C4" }
     ]
   },
 
-  { id: "C4", type: "choice", chapter: "归途", text:
+  { id: "C4", type: "choice", chapter: "归途", lighting: "dawn", text:
     "走出大门前，你最后回望了一眼这座庄园。",
     options: [
-      { text: "按来时的路，径直离开，不再回头。",
+      { text: "趁晨雾未合，沿着来时的青石车辙径直登车——做客有始有终，不探主人未言之事。",
         scores: { J: 1 }, flags: ["flag_leave"],
         feedback: "雾在身后合拢。像一本书合上了封皮。",
         next: "endingC" },
-      { text: "鬼使神差地，你绕去了后园。井台的荒草里，有什么东西在晨光下闪了一下。",
+      { text: "登车前忽生一念，顺着鞋底沾上的湿苔印，绕去后园的荒草间看上一眼。",
         scores: { P: 1 }, flags: ["flag_find"],
         feedback: "你拨开草叶——一枚旧银匙，静静躺在一百年的尘埃里。你把它揣进了口袋。",
         next: "endingC" }
     ]
   },
 
-  { id: "endingC", type: "ending",
+  { id: "endingC", type: "ending", lighting: "dawn",
     endingTitle: "结局三 · 过客",
     body:
-      "马车驶远。庄园在雾中缓缓合拢。",
+      "马车辗过沾着晨露的碎石路，缓缓驶离铁门。\n" +
+      "你在车厢里靠着椅背，衣袖间还留着客房壁炉淡淡的松木香。\n" +
+      "这一夜你没有去揭开任何人的伤疤，也没有推开任何一扇不该推开的门——\n" +
+      "在这座装满百年心事的庄园里，你做了一名真正守礼的过客。",
     variants: [
       { flag: "flag_find",    text: "你带走了一枚银匙。此后每逢有人问起它的来历，你只说：捡的。庄园、晚宴、画中的女子——在记忆里淡成一场雾，只有掌心的凉意，提醒你那一夜是真的。" },
       { flag: "flag_leave",   text: "你什么也没带走，除了满身的雾气和一个格外安稳的睡眠。那座庄园后来再没寄来邀请函。也许它知道，你睡得很好。" },
@@ -577,13 +758,15 @@ const STORY = [
       { flag: "flag_tray",    text: "那只托盘，你亲手还给了仆人。后来你才想明白：那一夜走廊里来去两趟的脚步声，是一位守夜人，在替所有熟睡的客人巡夜。" }
     ],
     baseText:
-      "长廊尽头，那扇门虚掩着。始终，没有再开。"
+      "白雾在马车后方重新合拢，将维多利亚式的尖顶一点点吞没。\n" +
+      "世上有些故事需要倾听者，也有些夜晚，只需要一个安稳睡去的人。\n" +
+      "长廊尽头，那扇门虚掩着。而你把它的秘密，完整地还给了庄园。"
   },
 
   // ==================== D线 · 隐藏线（归还） ====================
   // 触发条件: ch6 时 主人好感≥2 且 沈先生好感≥2
 
-  { id: "D0", type: "narrative", chapter: "西翼 · 钥匙", tint: "gold", text:
+  { id: "D0", type: "narrative", chapter: "西翼 · 钥匙", tint: "gold", lighting: "garden", text:
     "主人闻言一怔，与沈先生对视一眼——\n" +
     "你们三人之间，有什么东西在这一刻对齐了。\n" +
     "他从怀中取出一枚黄铜钥匙：「门从不锁客人。它只锁还没准备好的人。」\n" +
@@ -594,7 +777,7 @@ const STORY = [
   },
 
   // ---- D线小支点 ds1：短廊 · 同行（不计分） ----
-  { id: "ds1", type: "choice", noScore: true, chapter: "短廊 · 同行", tint: "gold", text:
+  { id: "ds1", type: "choice", noScore: true, chapter: "短廊 · 同行", tint: "gold", lighting: "garden", text:
     "主人提灯走在前面，沈先生与你并肩。\n" +
     "短廊两侧挂着早已熄灭的灯架，三人的脚步声在窄墙之间轻轻回响。\n" +
     "谁都没有说话——但沉默与沉默，并不相同。",
@@ -610,22 +793,22 @@ const STORY = [
     ]
   },
 
-  { id: "D1", type: "choice", chapter: "后园 · 井台", tint: "gold", text:
+  { id: "D1", type: "choice", chapter: "后园 · 井台", tint: "gold", lighting: "garden", text:
     "井台的石沿上，还留着一枚早已锈死的铁钩。\n" +
     "「当年，银匙就挂在这里。」主人说。",
     options: [
-      { text: "让沈先生亲手把它挂回去——物归原位，理应如此。",
+      { text: "退后半步，请沈先生亲手将银匙挂回原位——百年前的因果，理应由当事人的手来结清。",
         scores: { T: 1 }, flags: ["flag_hook"],
         feedback: "铁钩与银匙轻轻相碰，一声脆响，在夜里荡出很远。",
         next: "D2" },
-      { text: "挂回去之前，你提议三人静立片刻，为她说几句话。",
+      { text: "在挂回银匙前，提议三人先对着井台静立片刻，替那位没能上来的姑娘道一声别。",
         scores: { F: 1 }, flags: ["flag_song"],
         feedback: "沈先生哑着嗓子，哼起一支旧调——是母亲们哄孩子入睡的那种。主人垂着手，听完才转身。",
         next: "D2" }
     ]
   },
 
-  { id: "D2", type: "narrative", chapter: "后园 · 雾散", tint: "gold", text:
+  { id: "D2", type: "narrative", chapter: "后园 · 雾散", tint: "gold", lighting: "garden", text:
     "雾从井口慢慢漫上来，掠过你们三人的膝。\n" +
     "烛火同时弯了一下，又直起。\n" +
     "你听见极轻的一声——像一句搁了一百年的叹息，终于吐尽了。\n" +
@@ -634,7 +817,7 @@ const STORY = [
   },
 
   // ---- D线小支点 ds2：后园 · 她的小时候（不计分） ----
-  { id: "ds2", type: "choice", noScore: true, chapter: "后园 · 她的小时候", tint: "gold", text:
+  { id: "ds2", type: "choice", noScore: true, chapter: "后园 · 她的小时候", tint: "gold", lighting: "garden", text:
     "主人望着井台，忽然开口：「你们想知道她是什么样的孩子吗？」\n" +
     "月光下，他的语气松了下来——像个终于可以谈起亡女的父亲。",
     options: [
@@ -649,36 +832,36 @@ const STORY = [
     ]
   },
 
-  { id: "D3", type: "choice", chapter: "后园 · 凭记", tint: "gold", text:
+  { id: "D3", type: "choice", chapter: "后园 · 凭记", tint: "gold", lighting: "garden", text:
     "「该给她留个凭记吗？」主人问。",
     options: [
-      { text: "立一方小碑，把名字和年份刻上，让后来的人知道她来过。",
+      { text: "在井台石沿旁立一方小碑，刻下名字与年份，让往后经过的人有所凭吊。",
         scores: { J: 1 }, flags: ["flag_stone"],
         feedback: "碑很小，字很浅：艾德琳，1887。像她本人一样，不惊动任何人。",
         next: "D4" },
-      { text: "不立碑。在井台边撒一把野蔷薇的种子，让花自己决定开不开。",
+      { text: "不立碑，只在井台四周撒一把野蔷薇种子，任它随春风自己生发。",
         scores: { P: 1 }, flags: ["flag_rose"],
         feedback: "主人笑了：「她一定会喜欢这个主意。」",
         next: "D4" }
     ]
   },
 
-  { id: "D4", type: "choice", chapter: "门廊 · 晨", tint: "gold", text:
+  { id: "D4", type: "choice", chapter: "门廊 · 晨", tint: "gold", lighting: "dawn", text:
     "东方既白，主人送你们到门廊。\n" +
     "「往后呢？」他问。",
     options: [
-      { text: "「约定吧。每年的今天，无论在哪，我们都回来看她一眼。」",
+      { text: "「定个盟约吧。每年的十一月三日，无论身在何处，我们都回来看她一眼。」",
         scores: { J: 1 }, flags: ["flag_promise_d"],
         feedback: "三个人的影子在晨光里拉得很长，握了握手，像缔结了一个小小的盟约。",
         next: "endingD" },
-      { text: "「不必约定。想回来的人，自然会回来。」",
+      { text: "「不必立约。心里的石头既已落地，哪天想念了，自然会踏雪而来。」",
         scores: { P: 1 }, flags: ["flag_free"],
         feedback: "主人点头：「也好。门不锁客人——也不锁故人。」",
         next: "endingD" }
     ]
   },
 
-  { id: "endingD", type: "ending", tint: "gold",
+  { id: "endingD", type: "ending", tint: "gold", lighting: "dawn",
     endingTitle: "结局四 · 归还（隐藏）",
     body:
       "这一夜你带走的不是故事，而是一场告别。\n" +
