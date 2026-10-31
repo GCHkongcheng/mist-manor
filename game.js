@@ -841,7 +841,7 @@
               box.appendChild(head);
               const body = document.createElement("p");
               body.className = "collection-detail-body";
-              body.textContent = "在历次赴宴中分别收集「泛黄旧合影」（第三章走廊旧照）、「1887 覆面银框」（第二章细辨画款或炙烤画布）与「画家后人席卡」（第四章与沈先生同席交谈），即可在此拼合三件证物，奏响 1887 年的八音盒旋律并展读艾德琳写给母亲却未寄出的短笺。";
+              body.textContent = "在历次赴宴中分别收集「泛黄旧合影」（第三章旧照或东廊旧照）、「1887 覆面银框」（门厅翻看银框、第二章细辨画款或炙烤画布）与「故人后裔席卡」（第三章与沈先生同席交谈），即可在此拼合三件证物，奏响 1887 年的八音盒旋律并展读艾德琳写给母亲却未寄出的短笺。";
               box.appendChild(body);
             });
           }
