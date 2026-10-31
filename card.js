@@ -286,29 +286,27 @@
     };
     renderCardCanvas(opts).toBlob(function (blob) {
       if (!blob) { done("生成失败"); return; }
-      var download = function () {
+      try {
+        var imgUrl = URL.createObjectURL(blob);
+        // 第一道保险：原生 a 标签自动触发下载保存
         var a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
+        a.href = imgUrl;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
-        setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+
         done("已保存");
-      };
-      try {
-        var file = new File([blob], filename, { type: "image/png" });
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: "迷雾庄园 · " + code })
-            .then(function () { done("已分享"); })
-            .catch(function (err) {
-              if (err && err.name === "AbortError") { done(defaultBtnLabel); return; }
-              download();
-            });
-          return;
+        if (typeof window !== "undefined" && typeof window.showToast === "function") {
+          window.showToast(hasBond ? "双人合盘海报已开始下载保存" : "名片海报已开始下载保存");
         }
-      } catch (e) {}
-      download();
+        // 第二道保险：呼出大图浮层，专为微信/移动端提供长按保存相册能力
+        if (typeof window !== "undefined" && typeof window.showImageModal === "function") {
+          window.showImageModal(imgUrl, filename, hasBond);
+        }
+      } catch (e) {
+        done("保存失败");
+      }
     }, "image/png");
   }
 

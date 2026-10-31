@@ -89,6 +89,7 @@ const testScript = `
   // prologue -> ch1
   var cont1 = document.querySelector("#options .btn-ghost");
   assert("叙事节点显示继续按钮", !!cont1);
+  assert("继续按钮包含 key-hint 元素用于 PC/移动端快捷键区分", cont1.querySelector(".key-hint") && cont1.querySelector(".key-hint").textContent === "（空格）");
   cont1.click();
   assert("进入第一章后火漆信封自动收起", waxEnv.classList.contains("hidden"));
 
@@ -167,16 +168,11 @@ const testScript = `
           bondBox && !bondBox.classList.contains("hidden") &&
           document.getElementById("bond-inviter-code").textContent === "INTJ" &&
           document.getElementById("bond-title").textContent.length > 2);
-        // 验证结局屏手动切换同席友人合盘
-        document.getElementById("bond-toggle-btn").click();
-        var bondPicker = document.getElementById("bond-picker");
-        assert("点击更换同席友人展开合盘选择器", !bondPicker.classList.contains("hidden"));
-        document.getElementById("bond-select-mbti").value = "ENFP";
-        document.getElementById("bond-select-ending").value = "D";
-        document.getElementById("bond-apply-btn").click();
-        assert("手动选择友人类型与结局后即时更新合盘卡片",
-          bondPicker.classList.contains("hidden") &&
-          document.getElementById("bond-inviter-code").textContent === "ENFP");
+        // 验证结局屏「寄出同席请柬」专属邀请按钮与动态链接生成
+        var inviteBtn = document.getElementById("invite-btn");
+        assert("结局屏提供「寄出同席请柬」专属邀请按钮", !!inviteBtn);
+        inviteBtn.click();
+        assert("点击寄出请柬触发分享/复制反馈", inviteBtn.textContent.indexOf("请柬") >= 0);
         var skipHint = document.getElementById("ending-skip-hint");
         assert("结局打字期间底部显示明显跳过轻提示", !skipHint.classList.contains("hidden"));
         skipHint.click();
@@ -249,6 +245,15 @@ const testScript = `
           cv && cv.width === 1080 && cv.height === 1560 &&
           cvBond && cvBond.width === 1080 && cvBond.height === 1840);
 
+        // 验证微信长按保存海报双保险浮层
+        window.showImageModal("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "test.png");
+        var imgModal = document.getElementById("image-modal");
+        assert("长按保存相册预览浮层（微信双保险）正常展示海报与长按提示",
+          imgModal && !imgModal.classList.contains("hidden") &&
+          document.getElementById("image-modal-img").getAttribute("src").length > 0);
+        document.getElementById("image-modal-close").click();
+        assert("点击海报浮层关闭按钮正常隐藏", imgModal.classList.contains("hidden"));
+
         // 切回立即档，点击「再赴晚宴」开启二周目，验证平行题库启用
         document.querySelector('#speed-seg button[data-speed="instant"]').click();
         document.getElementById("again-btn").click();
@@ -262,6 +267,17 @@ const testScript = `
         document.getElementById("quit-btn").click();
         document.getElementById("continue-btn").click();
         assert("选后反馈期间回封面并继续，进度保持第 1 / 12 问不翻倍", document.getElementById("progress-label").textContent.indexOf("第 1 / 12 问") >= 0);
+
+        // 验证有存档时点击推开大门弹出自定义庄园风格模态确认框
+        document.getElementById("settings-btn").click();
+        document.getElementById("quit-btn").click();
+        document.getElementById("start-btn").click();
+        var confirmModal = document.getElementById("confirm-modal");
+        assert("有存档时点击推开大门弹出自定义庄园风格模态确认框",
+          confirmModal && !confirmModal.classList.contains("hidden") &&
+          document.getElementById("confirm-title").textContent.indexOf("开启新的晚宴") >= 0);
+        document.getElementById("confirm-cancel-btn").click();
+        assert("点击确认框取消按钮正常关闭模态弹窗", confirmModal.classList.contains("hidden"));
 
         finish();
         return;

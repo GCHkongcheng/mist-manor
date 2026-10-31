@@ -16,7 +16,11 @@
   <meta name="twitter:card" content="summary_large_image" />
   <!-- 烛光 favicon（data-URI 内联 SVG，维持零资源文件） -->
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%230d0b14'/%3E%3Crect x='15' y='12' width='2' height='14' fill='%23c9a96a'/%3E%3Cellipse cx='16' cy='9' rx='3.2' ry='5' fill='%23e8d9a0'/%3E%3Cellipse cx='16' cy='9' rx='1.6' ry='3' fill='%23fff6d8'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=3" />
+  <!-- Google Fonts 中文动态切片分包 Noto Serif SC（思源宋体）确保移动端衬线质感一致 -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body data-lighting="foyer">
   <!-- 雾气背景层 -->
@@ -235,7 +239,7 @@
     <section id="result-screen" class="result-screen hidden">
       <h2 id="ending-title" class="ending-title"></h2>
       <div id="ending-text" class="ending-text"></div>
-      <button id="ending-skip-hint" class="ending-skip-hint hidden" type="button">点击此处或按空格键，立即揭晓人格名片 ▾</button>
+      <button id="ending-skip-hint" class="ending-skip-hint hidden" type="button">点击此处<span class="key-hint">或按空格键</span>，立即揭晓人格名片 ▾</button>
       <!-- 人格画像：维多利亚式拜访名片（支持正反面 3D 翻转 + 视差倾斜 + 烫金流光） -->
       <div id="mbti-box" class="mbti-box">
         <div id="mbti-flipper" class="mbti-flipper">
@@ -276,7 +280,7 @@
           </div>
         </div>
       </div>
-      <!-- 双人同席羁绊合盘（链接自动触发或手动选择友人合盘） -->
+      <!-- 双人同席羁绊合盘（持友人请柬赴宴通关后自动揭晓） -->
       <div id="bond-section" class="bond-section">
         <div id="bond-box" class="bond-box hidden" role="region" aria-label="双人同席羁绊合盘">
           <p class="bond-kicker">TWIN SEATS AT THE BANQUET · 双人同席合盘</p>
@@ -300,40 +304,6 @@
           <p id="bond-desc" class="bond-desc"></p>
           <p id="bond-route" class="bond-route"></p>
         </div>
-        <div class="bond-picker-bar">
-          <button id="bond-toggle-btn" class="link-btn" type="button" aria-expanded="false">与友人同席合盘 ▾</button>
-          <button id="bond-clear-btn" class="link-btn hidden" type="button">解除同席</button>
-        </div>
-        <div id="bond-picker" class="bond-picker hidden">
-          <p class="bond-picker-tip">选择友人的十六型人格与结局线（或直接粘贴友人分享的请柬暗码），即刻揭晓你们的庄园合盘并生成双人海报：</p>
-          <div class="bond-picker-row">
-            <select id="bond-select-mbti" class="bond-select" aria-label="选择友人人格类型">
-              <option value="INTJ">INTJ · 建筑师</option>
-              <option value="INTP">INTP · 逻辑学家</option>
-              <option value="ENTJ">ENTJ · 指挥官</option>
-              <option value="ENTP">ENTP · 辩论家</option>
-              <option value="INFJ">INFJ · 提倡者</option>
-              <option value="INFP">INFP · 调停者</option>
-              <option value="ENFJ">ENFJ · 主人公</option>
-              <option value="ENFP">ENFP · 竞选者</option>
-              <option value="ISTJ">ISTJ · 物流师</option>
-              <option value="ISFJ">ISFJ · 守卫者</option>
-              <option value="ESTJ">ESTJ · 总经理</option>
-              <option value="ESFJ">ESFJ · 执政官</option>
-              <option value="ISTP">ISTP · 鉴赏家</option>
-              <option value="ISFP">ISFP · 探险家</option>
-              <option value="ESTP">ESTP · 企业家</option>
-              <option value="ESFP">ESFP · 表演者</option>
-            </select>
-            <select id="bond-select-ending" class="bond-select" aria-label="选择友人结局线">
-              <option value="A">结局一 · 真相之夜（书房）</option>
-              <option value="B">结局二 · 门后（蓝门）</option>
-              <option value="C">结局三 · 过客（客房）</option>
-              <option value="D">结局四 · 归还（后园）</option>
-            </select>
-            <button id="bond-apply-btn" class="btn-ghost bond-apply-btn" type="button">结成合盘</button>
-          </div>
-        </div>
       </div>
       <p id="result-hint" class="result-hint">四条剧情线 · 一个隐藏结局 · 你的选择决定你经历怎样的夜晚</p>
       <details class="collection">
@@ -350,9 +320,10 @@
         </div>
       </details>
       <div class="result-actions">
-        <button id="again-btn" class="btn-primary" type="button">再赴晚宴（换套题走）</button>
-        <button id="share-btn" class="btn-ghost" type="button">复制结局</button>
+        <button id="again-btn" class="btn-primary" type="button">再赴晚宴</button>
+        <button id="invite-btn" class="btn-ghost invite-btn" type="button">寄出同席请柬 ✦</button>
         <button id="card-btn" class="btn-ghost" type="button">保存名片图</button>
+        <button id="share-btn" class="link-btn share-long-btn" type="button">复制结局长评</button>
       </div>
       <p class="disclaimer">本作品为互动叙事游戏，十六型人格结果仅供娱乐，非专业心理测评。</p>
     </section>
@@ -468,9 +439,36 @@
     </div>
   </div>
 
+  <!-- 自定义确认弹窗（暗色维多利亚庄园风格模态框） -->
+  <div id="confirm-modal" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="panel confirm-panel">
+      <div class="confirm-ornament" aria-hidden="true">✦ MIST MANOR · 庄园抉择 ✦</div>
+      <h3 id="confirm-title" class="panel-title confirm-title">开启新的晚宴</h3>
+      <p id="confirm-desc" class="confirm-desc"></p>
+      <div class="panel-actions confirm-actions">
+        <button id="confirm-ok-btn" class="btn-primary" type="button">确认</button>
+        <button id="confirm-cancel-btn" class="btn-ghost" type="button">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 名片海报大图预览浮层（微信/移动端长按保存相册双保险） -->
+  <div id="image-modal" class="overlay hidden" role="dialog" aria-modal="true" aria-label="名片海报预览">
+    <div class="image-modal-card">
+      <button id="image-modal-close" class="image-modal-close" type="button" aria-label="关闭海报预览">✕</button>
+      <div class="image-modal-stage">
+        <img id="image-modal-img" class="image-modal-img" src="" alt="庄园名片海报" />
+      </div>
+      <p class="image-modal-tip">✦ 提示：已尝试自动下载 · 若未存入相册可长按上方图片保存 ✦</p>
+    </div>
+  </div>
+
   <footer class="footer">
     <span>迷雾庄园 · 用华为云码道 CodeArts 创作 · 仅供娱乐</span>
   </footer>
+
+  <!-- 全局轻提示浮层 -->
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="data.js?v=3"></script>
   <script src="engine.js?v=3"></script>

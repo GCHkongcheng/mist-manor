@@ -51,12 +51,7 @@
   const bondResonance = $("bond-resonance");
   const bondDesc = $("bond-desc");
   const bondRoute = $("bond-route");
-  const bondToggleBtn = $("bond-toggle-btn");
-  const bondClearBtn = $("bond-clear-btn");
-  const bondPicker = $("bond-picker");
-  const bondSelectMbti = $("bond-select-mbti");
-  const bondSelectEnding = $("bond-select-ending");
-  const bondApplyBtn = $("bond-apply-btn");
+  const inviteBtn = $("invite-btn");
   const candleSecretStage = $("candle-secret-stage");
   const roastBox = $("roast-box");
   const roastZone = $("roast-zone");
@@ -109,6 +104,20 @@
   const undoBar = $("undo-bar");
   const undoBtn = $("undo-btn");
   const resetGalleryBtn = $("reset-gallery-btn");
+
+  // 自定义模态确认框
+  const confirmModal = $("confirm-modal");
+  const confirmTitle = $("confirm-title");
+  const confirmDesc = $("confirm-desc");
+  const confirmOkBtn = $("confirm-ok-btn");
+  const confirmCancelBtn = $("confirm-cancel-btn");
+  let confirmCallback = null;
+
+  // 名片海报大图预览浮层（微信长按保存双保险）
+  const imageModal = $("image-modal");
+  const imageModalImg = $("image-modal-img");
+  const imageModalClose = $("image-modal-close");
+  let activeImageUrl = null;
 
   // ---------- 节点索引与元数据推导 ----------
   const NODES = {};
@@ -510,6 +519,12 @@
     "结局三 · 过客：第六章道过晚安回房歇息",
     "结局四 · 归还（隐藏）：晚宴中对主人与沈先生均多留一份体谅与分寸，第六章将浮现第四个选择"
   ];
+  const ENDING_MYSTERY_HINTS = [
+    "壁炉里的余烬仍在低语，关于那些被主人深锁在书房里的旧事与密辛……",
+    "长廊深处有一抹若隐若现的冷蓝微光，似乎正等待着一位好奇的夜行探寻者……",
+    "并非所有赴宴者都必须卷入漩涡，也许今夜你只想做个互道晚安的体面过客……",
+    "【隐秘分支】当你在暗流涌动的席间替众人多留一分体面与周全，迷雾深处或许会为你浮现第四条归途。"
+  ];
   const ENDING_NAMES = ["真相", "门后", "过客", "归还"];
 
   // 图鉴与名片夹点击详情预览（兼顾触屏与收集回看）
@@ -551,7 +566,7 @@
         const slot = document.createElement("button");
         slot.type = "button";
         slot.className = "gallery-slot" + (unlocked ? " unlocked" : "");
-        slot.title = unlocked ? NODES[eid].endingTitle : ENDING_HINTS[idx];
+        slot.title = unlocked ? NODES[eid].endingTitle : ("结局 · " + ["壹", "贰", "叁", "肆"][idx] + "（迷雾未散）");
         slot.textContent = unlocked ? ENDING_NAMES[idx] : "?";
         slot.setAttribute("aria-label", unlocked ? NODES[eid].endingTitle : ("未解锁结局 " + (idx + 1) + " 线索"));
         slot.addEventListener("click", function () {
@@ -567,7 +582,7 @@
             const head = document.createElement("div");
             head.className = "collection-detail-head";
             const titleSpan = document.createElement("span");
-            titleSpan.textContent = unlocked ? NODES[eid].endingTitle : ("结局" + ["一", "二", "三", "四"][idx] + " · 未解锁");
+            titleSpan.textContent = unlocked ? NODES[eid].endingTitle : ("结局 · " + ["壹", "贰", "叁", "肆"][idx] + " · 迷雾重重");
             const tagSpan = document.createElement("span");
             tagSpan.className = "collection-detail-tag";
             tagSpan.textContent = unlocked ? "已收录" : "解锁线索";
@@ -578,7 +593,7 @@
             body.className = "collection-detail-body";
             body.textContent = unlocked
               ? (NODES[eid].body.replace(/\n+/g, " ") + "（" + ENDING_HINTS[idx] + "）")
-              : ENDING_HINTS[idx];
+              : ENDING_MYSTERY_HINTS[idx];
             box.appendChild(body);
           });
         });
@@ -636,8 +651,8 @@
           slot.setAttribute("aria-label", code + " " + t.name + " 已解锁名片");
         } else {
           slot.textContent = "·";
-          slot.title = "名片 " + code + " · 未解锁";
-          slot.setAttribute("aria-label", "名片 " + code + " 未解锁");
+          slot.title = "空白席位卡 · 尚未相逢";
+          slot.setAttribute("aria-label", "未收录席位卡");
         }
         slot.addEventListener("click", function () {
           const wrap = el.parentElement;
@@ -652,7 +667,7 @@
             const head = document.createElement("div");
             head.className = "collection-detail-head";
             const titleSpan = document.createElement("span");
-            titleSpan.textContent = unlocked ? (t.code + " · " + t.name) : ("名片 " + code + (t ? " · " + t.name : ""));
+            titleSpan.textContent = unlocked ? (t.code + " · " + t.name) : "空白席位卡 · 虚位以待";
             const tagSpan = document.createElement("span");
             tagSpan.className = "collection-detail-tag";
             tagSpan.textContent = unlocked ? "已收录名片" : "尚未收录";
@@ -671,7 +686,7 @@
             } else {
               const body = document.createElement("p");
               body.className = "collection-detail-body";
-              body.textContent = "在晚宴的 12 次抉择中，当四维度倾向汇聚为 " + code + " 时，庄园主人将为你奉上这张拜访名片。";
+              body.textContent = "晚宴上的十二次抉择将映照出不同的人格底色。唯有以特定心绪走完全程，维恩先生方会在席末为你奉上这张专属拜访名片。";
               box.appendChild(body);
             }
           });
@@ -735,8 +750,8 @@
         slot.type = "button";
         slot.className = "relic-slot" + (unlocked ? " unlocked" : "");
         slot.dataset.relic = item.id;
-        slot.title = unlocked ? (item.name + " · " + item.origin) : ("古董证物 · " + item.shortName + "（未收录）");
-        slot.setAttribute("aria-label", unlocked ? (item.name + " 已收录证物") : (item.shortName + " 未收录证物"));
+        slot.title = unlocked ? (item.name + " · " + item.origin) : "古董陈列匣 · 封存旧物";
+        slot.setAttribute("aria-label", unlocked ? (item.name + " 已收录证物") : "封存的古董证物");
 
         const svgNS = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(svgNS, "svg");
@@ -763,7 +778,7 @@
             const head = document.createElement("div");
             head.className = "collection-detail-head";
             const titleSpan = document.createElement("span");
-            titleSpan.textContent = unlocked ? item.name : ("古董证物 · " + item.name);
+            titleSpan.textContent = unlocked ? item.name : "封存旧物 · 未辨真容";
             const tagSpan = document.createElement("span");
             tagSpan.className = "collection-detail-tag";
             tagSpan.textContent = unlocked ? "已入陈列匣" : "寻访线索";
@@ -772,12 +787,12 @@
             box.appendChild(head);
             const roleP = document.createElement("p");
             roleP.className = "collection-detail-role";
-            roleP.textContent = "出处：" + item.origin;
+            roleP.textContent = unlocked ? ("出处：" + item.origin) : "出处：庄园深处某个被遗忘的角落";
             const descP = document.createElement("p");
             descP.className = "collection-detail-body";
             descP.textContent = unlocked
               ? item.desc
-              : ("在晚宴中触发「" + item.origin + "」相关抉择或烛光显影后，这件百年旧物将收入你的陈列架。");
+              : "百年前的旧物证言散落在庄园各处。留心席间暗涌、画框夹层或熄灭的烛光，当特定因缘暗合时，这件旧物方会重见天日。";
             box.appendChild(roleP);
             box.appendChild(descP);
           });
@@ -1563,8 +1578,8 @@
   function showContinueHint(onContinue) {
     const hint = document.createElement("button");
     hint.type = "button";
-    hint.className = "btn-ghost";
-    hint.textContent = "继续（空格）";
+    hint.className = "btn-ghost continue-btn";
+    hint.innerHTML = '继续<span class="key-hint">（空格）</span>';
     hint.style.marginTop = "4px";
     hint.style.opacity = "0";
     hint.style.transition = "opacity 0.4s";
@@ -1698,15 +1713,9 @@
       if (bondResonance) bondResonance.textContent = bond.resonance;
       if (bondDesc) bondDesc.textContent = bond.desc;
       if (bondRoute) bondRoute.textContent = "【" + bond.routeTitle + "】" + bond.routeDesc;
-      if (bondSelectMbti) bondSelectMbti.value = bond.inviter.code;
-      if (bondSelectEnding) bondSelectEnding.value = bond.inviter.endingKey;
-      if (bondToggleBtn) bondToggleBtn.textContent = "更换同席友人 ▾";
-      if (bondClearBtn) bondClearBtn.classList.remove("hidden");
       if (cardBtn) cardBtn.textContent = "保存双人合盘图";
     } else {
       bondBox.classList.add("hidden");
-      if (bondToggleBtn) bondToggleBtn.textContent = "与友人同席合盘 ▾";
-      if (bondClearBtn) bondClearBtn.classList.add("hidden");
       if (cardBtn) cardBtn.textContent = "保存名片图";
     }
   }
@@ -1757,22 +1766,80 @@
     });
   }
 
-  // ---------- 复制结局 / 保存名片图 ----------
-  function canShare() {
-    return !!(navigator.share && navigator.canShare);
+  // ---------- 全局轻提示（Toast） ----------
+  let toastTimer = null;
+  function showToast(msg) {
+    let t = $("toast");
+    if (!t) {
+      t = document.createElement("div");
+      t.id = "toast";
+      t.className = "toast";
+      t.setAttribute("role", "status");
+      t.setAttribute("aria-live", "polite");
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    t.classList.remove("hidden");
+    void t.offsetWidth;
+    t.classList.add("toast-show");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      t.classList.remove("toast-show");
+      setTimeout(function () { t.classList.add("hidden"); }, 300);
+    }, 2400);
   }
-  function updateShareBtn() {
-    shareBtn.textContent = canShare() ? "分享结局" : "复制结局";
+  window.showToast = showToast;
+
+  // ---------- 复制到剪贴板 ----------
+  function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).catch(function () {});
+    }
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
   }
+
+  // ---------- 复制结局长评 / 寄出同席请柬 / 保存名片图 ----------
+  function getInviteUrl(seed) {
+    try {
+      const u = new URL(window.location.href);
+      u.hash = seed ? ("invite=" + seed) : "";
+      return u.toString();
+    } catch (e) {
+      const base = (window.location.origin || "") + (window.location.pathname || "");
+      return seed ? (base + "#invite=" + seed) : base;
+    }
+  }
+
+  function shareInvite() {
+    if (!currentEnding) return;
+    const m = computeMBTI();
+    const mySeed = Engine.encodeInviteSeed(m.code, currentEnding.id, flags);
+    const shareUrl = getInviteUrl(mySeed);
+    copyToClipboard(shareUrl);
+    if (inviteBtn) {
+      inviteBtn.textContent = "✓ 请柬链接已复制";
+      setTimeout(function () {
+        inviteBtn.textContent = "寄出同席请柬 ✦";
+      }, 2000);
+    }
+    showToast("请柬链接已复制到剪贴板，快发给好友吧！");
+  }
+
   function shareResult() {
     const m = computeMBTI();
     const g = getGallery();
     const got = Object.keys(g).length;
     const cardsGot = Object.keys(getCards()).length;
     const mySeed = Engine.encodeInviteSeed(m.code, currentEnding.id, flags);
-    const shareUrl = mySeed
-      ? ("https://mist.gchkc.top/#invite=" + mySeed)
-      : "https://mist.gchkc.top";
+    const shareUrl = getInviteUrl(mySeed);
     const bond = inviter ? Engine.computeBond(inviter, { code: m.code, endingId: currentEnding.id }) : null;
     const bondLine = bond
       ? ("\n✦ 双人同席合盘：我与【" + bond.inviter.code + " · " + bond.inviter.name + "】结成了「" + bond.title + "」（" + bond.resonance + "）\n" + bond.desc + "\n")
@@ -1789,35 +1856,15 @@
       shareSummary + "\n\n" +
       "持我的专属请柬入席，测出你的十六型人格并揭晓我们的庄园合盘：" + shareUrl + "\n" +
       "四条剧情线 · 一个隐藏结局 · 我已解锁 " + got + "/4 个结局 · 名片夹 " + cardsGot + "/16 型";
-    if (canShare()) {
-      navigator.share({ title: shareTitle, text: text })
-        .then(function () { shareSucceeded(); })
-        .catch(function (err) {
-          if (err && err.name === "AbortError") return;
-          fallbackCopy(text);
-        });
-    } else {
-      fallbackCopy(text);
+
+    copyToClipboard(text);
+    if (shareBtn) {
+      shareBtn.textContent = "✓ 已复制长评";
+      setTimeout(function () {
+        shareBtn.textContent = "复制结局长评";
+      }, 2000);
     }
-  }
-  function shareSucceeded() {
-    shareBtn.textContent = "已分享";
-    setTimeout(updateShareBtn, 1800);
-  }
-  function fallbackCopy(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    try { document.execCommand("copy"); } catch (e) {}
-    document.body.removeChild(ta);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(function () {});
-    }
-    shareBtn.textContent = "已复制";
-    setTimeout(updateShareBtn, 1800);
+    showToast("结局长评已复制到剪贴板");
   }
 
   // 提炼本局专属晚宴轨迹印记（供名片图展示个性化足迹）
@@ -1952,11 +1999,104 @@
     const had = !!activePanel();
     settingsPanel.classList.add("hidden");
     historyPanel.classList.add("hidden");
-    document.body.classList.remove("panel-open");
+    if (!confirmModal || confirmModal.classList.contains("hidden")) {
+      document.body.classList.remove("panel-open");
+    }
     if (importBox) importBox.classList.add("hidden");
     if (importStatus) importStatus.textContent = "";
     if (had && lastFocus && lastFocus.offsetParent !== null && lastFocus.focus) lastFocus.focus();
     if (had) lastFocus = null;
+  }
+
+  // ---------- 庄园风格模态确认框 ----------
+  function showConfirmModal(opts) {
+    if (!confirmModal) return;
+    const panel = confirmModal.querySelector(".confirm-panel");
+    if (confirmTitle) confirmTitle.textContent = opts.title || "庄园提醒";
+    if (confirmDesc) confirmDesc.textContent = opts.desc || "是否确认继续？";
+    if (confirmOkBtn) confirmOkBtn.textContent = opts.okText || "确认";
+    if (confirmCancelBtn) confirmCancelBtn.textContent = opts.cancelText || "取消";
+    if (panel) panel.classList.toggle("is-danger", !!opts.danger);
+
+    confirmCallback = typeof opts.onConfirm === "function" ? opts.onConfirm : null;
+    confirmModal.classList.remove("hidden");
+    document.body.classList.add("panel-open");
+    AudioEngine.playSfx("click");
+    if (confirmOkBtn) confirmOkBtn.focus();
+  }
+
+  function hideConfirmModal() {
+    if (!confirmModal || confirmModal.classList.contains("hidden")) return;
+    confirmModal.classList.add("hidden");
+    confirmCallback = null;
+    if (settingsPanel.classList.contains("hidden") && historyPanel.classList.contains("hidden")) {
+      document.body.classList.remove("panel-open");
+    }
+  }
+
+  if (confirmOkBtn) {
+    confirmOkBtn.addEventListener("click", function () {
+      AudioEngine.playSfx("click");
+      const cb = confirmCallback;
+      hideConfirmModal();
+      if (cb) cb();
+    });
+  }
+  if (confirmCancelBtn) {
+    confirmCancelBtn.addEventListener("click", function () {
+      AudioEngine.playSfx("click");
+      hideConfirmModal();
+    });
+  }
+  if (confirmModal) {
+    confirmModal.addEventListener("click", function (e) {
+      if (e.target === confirmModal) {
+        AudioEngine.playSfx("click");
+        hideConfirmModal();
+      }
+    });
+  }
+
+  // ---------- 名片海报大图预览（微信/移动端长按保存双保险） ----------
+  function showImageModal(url, filename, hasBond) {
+    if (!imageModal || !imageModalImg) return;
+    activeImageUrl = url;
+    imageModalImg.src = url;
+    imageModalImg.alt = filename || "庄园名片海报";
+    imageModal.classList.remove("hidden");
+    document.body.classList.add("panel-open");
+    AudioEngine.playSfx("chime");
+    if (imageModalClose) imageModalClose.focus();
+  }
+
+  function hideImageModal() {
+    if (!imageModal || imageModal.classList.contains("hidden")) return;
+    imageModal.classList.add("hidden");
+    if (imageModalImg) imageModalImg.src = "";
+    if (activeImageUrl && activeImageUrl.startsWith("blob:")) {
+      try { URL.revokeObjectURL(activeImageUrl); } catch (e) {}
+    }
+    activeImageUrl = null;
+    if (settingsPanel.classList.contains("hidden") && historyPanel.classList.contains("hidden") && (!confirmModal || confirmModal.classList.contains("hidden"))) {
+      document.body.classList.remove("panel-open");
+    }
+  }
+  window.showImageModal = showImageModal;
+  window.hideImageModal = hideImageModal;
+
+  if (imageModalClose) {
+    imageModalClose.addEventListener("click", function () {
+      AudioEngine.playSfx("click");
+      hideImageModal();
+    });
+  }
+  if (imageModal) {
+    imageModal.addEventListener("click", function (e) {
+      if (e.target === imageModal) {
+        AudioEngine.playSfx("click");
+        hideImageModal();
+      }
+    });
   }
   function trapTab(e, panel) {
     const f = focusables(panel);
@@ -2110,14 +2250,21 @@
 
   // ---------- 键盘操作 ----------
   function onKeydown(e) {
+    const imageOpen = imageModal && !imageModal.classList.contains("hidden");
+    const confirmOpen = confirmModal && !confirmModal.classList.contains("hidden");
     const panelOpen = !settingsPanel.classList.contains("hidden") || !historyPanel.classList.contains("hidden");
-    if (e.key === "Tab" && panelOpen) { trapTab(e, activePanel()); return; }
+    if (e.key === "Tab" && (panelOpen || confirmOpen || imageOpen)) {
+      trapTab(e, imageOpen ? imageModal : (confirmOpen ? confirmModal : activePanel()));
+      return;
+    }
     if (e.key === "Escape") {
+      if (imageOpen) { hideImageModal(); return; }
+      if (confirmOpen) { hideConfirmModal(); return; }
       if (panelOpen) { closePanels(); return; }
       if (!gameScreen.classList.contains("hidden")) { toggleSettings(); return; }
       return;
     }
-    if (panelOpen) return;
+    if (panelOpen || confirmOpen || imageOpen) return;
 
     const inResult = !resultScreen.classList.contains("hidden");
     if (inResult && (e.key === " " || e.code === "Space")) {
@@ -2164,7 +2311,19 @@
 
   // ---------- 事件绑定 ----------
   startBtn.addEventListener("click", function () {
-    if (loadSave() && !window.confirm("开始新的晚宴会覆盖当前存档，确定吗？")) return;
+    if (loadSave()) {
+      showConfirmModal({
+        title: "开启新的晚宴",
+        desc: "你在庄园中留有未尽的足迹。若此刻重新推开大门，此前晚宴的自动存档将被新的抉择覆盖。是否确认重赴晚宴？",
+        okText: "推开大门 · 覆盖存档",
+        cancelText: "留步再想",
+        onConfirm: function () {
+          try { localStorage.removeItem(K_SAVE); } catch (e) {}
+          startGame(true);
+        }
+      });
+      return;
+    }
     try { localStorage.removeItem(K_SAVE); } catch (e) {}
     startGame(true);
   });
@@ -2273,31 +2432,10 @@
       clearInviter();
     });
   }
-  if (bondToggleBtn && bondPicker) {
-    bondToggleBtn.addEventListener("click", function () {
-      const willOpen = bondPicker.classList.contains("hidden");
-      bondPicker.classList.toggle("hidden", !willOpen);
-      bondToggleBtn.setAttribute("aria-expanded", willOpen ? "true" : "false");
+  if (inviteBtn) {
+    inviteBtn.addEventListener("click", function () {
       AudioEngine.playSfx("click");
-    });
-  }
-  if (bondApplyBtn) {
-    bondApplyBtn.addEventListener("click", function () {
-      const mVal = bondSelectMbti ? bondSelectMbti.value : "INTJ";
-      const eVal = bondSelectEnding ? bondSelectEnding.value : "A";
-      if (setInviterBySeed(mVal + "-" + eVal)) {
-        if (bondPicker) bondPicker.classList.add("hidden");
-        if (bondToggleBtn) bondToggleBtn.setAttribute("aria-expanded", "false");
-        AudioEngine.playSfx("chime");
-      }
-    });
-  }
-  if (bondClearBtn) {
-    bondClearBtn.addEventListener("click", function () {
-      AudioEngine.playSfx("click");
-      if (bondPicker) bondPicker.classList.add("hidden");
-      if (bondToggleBtn) bondToggleBtn.setAttribute("aria-expanded", "false");
-      clearInviter();
+      shareInvite();
     });
   }
   window.addEventListener("hashchange", function () {
@@ -2423,18 +2561,27 @@
 
   undoBtn.addEventListener("click", doUndo);
   resetGalleryBtn.addEventListener("click", function () {
-    if (!window.confirm("确定要清空结局图鉴、16 型名片夹与古董陈列架吗？")) return;
-    try {
-      localStorage.removeItem(K_GALLERY);
-      localStorage.removeItem(K_CARDS);
-      localStorage.removeItem(K_RELICS);
-      localStorage.removeItem(K_RUNS);
-    } catch (e) {}
-    renderGallery();
-    renderCards();
-    renderRelics();
-    updateContinueBtn();
-    resetGalleryBtn.classList.add("hidden");
+    showConfirmModal({
+      title: "抹去所有庄园足迹",
+      desc: "此举将抹去你已收集的全部 4 条结局图鉴、16 型名片夹与古董陈列架收藏，庄园记忆将重归于初。确定要清空这些珍藏吗？",
+      okText: "抹去印记 · 彻底重置",
+      cancelText: "保留珍藏",
+      danger: true,
+      onConfirm: function () {
+        try {
+          localStorage.removeItem(K_GALLERY);
+          localStorage.removeItem(K_CARDS);
+          localStorage.removeItem(K_RELICS);
+          localStorage.removeItem(K_RUNS);
+        } catch (e) {}
+        renderGallery();
+        renderCards();
+        renderRelics();
+        updateContinueBtn();
+        resetGalleryBtn.classList.add("hidden");
+        showToast("已清空图鉴与收集品");
+      }
+    });
   });
 
   document.addEventListener("keydown", onKeydown);
