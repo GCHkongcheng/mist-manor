@@ -54,7 +54,7 @@
     ch2: {
       mode: "roast",
       flag: "flag_secret_canvas",
-      hint: "画布右下角衬布似有柠檬汁写就的隐形字迹 · 将烛光移至此处停留（或长按）炙烤显影",
+      hint: "画布右下角衬布透出微弱的柠檬汁痕迹，借烛火之温或许能令其显形。",
       title: "烛火显影 · 画布暗层",
       cipher: "PAWN TICKET · No. 1887-XI-03 · REDEEMED BY: SHEN",
       revealText: "烛火的热度将画布背面的柠檬汁密迹烘成焦褐色——那是一行百年前的当票编号：「1887-11-03 · 赎当人：沈」。原来那枚银匙在落水当晚便被赎回，整整保存了一百年。",
@@ -63,7 +63,7 @@
     ch4: {
       mode: "roast",
       flag: "flag_secret_map",
-      hint: "地图西翼涂黑处背面有浅浅凹痕 · 将烛光移至此处停留（或长按）烘烤透视",
+      hint: "地图西翼涂黑处背面透着浅浅凹痕，借着烛焰透照，墨迹之下似有别样玄机。",
       title: "烛火显影 · 墨迹之下",
       cipher: "WEST WING · ADELINE'S STAR ROOM · DO NOT LOCK",
       revealText: "暖金烛焰从背面照透泛黄羊皮纸，浓黑的墨团底下浮出一行娟秀的旧体小字：「Adeline's Star Room · 勿锁」。被涂黑的从来不是禁地，是一位父亲不忍落锁的女儿旧卧室。",
@@ -72,7 +72,7 @@
     A0: {
       mode: "roast",
       flag: "flag_secret_diary",
-      hint: "1887 皮面日志扉页夹层似有密写药水 · 将烛光移至此处停留（或长按）炙烤显影",
+      hint: "1887 皮面日志扉页夹层似有百年前的密写药水，唯有烛火的热度能让绝笔重现。",
       title: "烛火显影 · 扉页绝笔",
       cipher: "IF THE BOY NAMED SHEN RETURNS — FORGIVE HIM. ADELINE HELD HIS SLEEVE.",
       revealText: "扉页夹层受热显出老庄园主百年前用密写药水留下的绝笔：「若那姓沈的少年或他的后人归来，勿追责。艾德琳最后握着的是他的衣角，她不怪他。」",

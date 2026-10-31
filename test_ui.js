@@ -290,9 +290,17 @@ const testScript = `
         var roastZone = document.getElementById("roast-zone");
         if (roastBox && !roastBox.classList.contains("hidden") && roastZone && !roastZone.classList.contains("hidden") && !window._testedRoast) {
           window._testedRoast = true;
-          roastZone.click();
+          var roastCanvas = document.getElementById("roast-canvas");
+          var roastTorch = document.getElementById("roast-torch");
+          assert("roastZone 包含覆蜡画布与跟随烛火元素", !!roastCanvas && !!roastTorch);
+          roastZone.dispatchEvent(new PointerEvent("pointerdown", { clientX: 100, clientY: 100, bubbles: true }));
+          roastZone.dispatchEvent(new PointerEvent("pointermove", { clientX: 140, clientY: 120, bubbles: true }));
+          assert("拖动烛火触发炙烤进度更新", document.getElementById("roast-progress-label").textContent.indexOf("烘烤度") >= 0);
+          roastZone.dispatchEvent(new PointerEvent("pointerup", { clientX: 140, clientY: 120, bubbles: true }));
+          roastZone.click(); // 抬手合成 click（被防误触机制安全吞掉）
+          roastZone.click(); // 单击揭晓完成
           var roastReveal = document.getElementById("roast-reveal");
-          assert("ch2 烛火炙烤显影：点击/悬停炙烤区烘出画背当票密文",
+          assert("ch2 烛火炙烤显影：点击/拖动炙烤区烘出画背当票密文",
             roastReveal && !roastReveal.classList.contains("hidden") &&
             document.getElementById("roast-cipher").textContent.indexOf("1887-XI-03") >= 0);
         }

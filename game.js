@@ -56,7 +56,9 @@
   const roastBox = $("roast-box");
   const roastZone = $("roast-zone");
   const roastHint = $("roast-hint");
-  const roastGhostCipher = $("roast-ghost-cipher");
+  const roastCanvas = $("roast-canvas");
+  const roastTorch = $("roast-torch");
+  const roastProgressLabel = $("roast-progress-label");
   const roastReveal = $("roast-reveal");
   const roastTitle = $("roast-title");
   const roastCipher = $("roast-cipher");
@@ -1151,9 +1153,12 @@
 
   // ---------- 烛光显影术：炙烤密文（ch2/ch4/A0）与吹熄蜡烛（B1 镜厅） ----------
   let activeSecret = null;
-  let roastHeat = 0;
-  let roastHeating = false;
-  let roastTimer = null;
+  let roastCompleted = false;
+  let roastGrid = null;
+  let roastClearedCells = 0;
+  let roastTotalCells = 72;
+  let roastLastSizzle = 0;
+  let roastIsDragging = false;
   let blowDarkTimer = null;
   let micStream = null;
   let micAudioCtx = null;
@@ -1175,39 +1180,171 @@
     if (micBlowLabel) micBlowLabel.textContent = "🎙️ 轻吹麦克风熄烛";
   }
 
-  function stopRoastHeating() {
-    roastHeating = false;
-    if (roastZone) roastZone.classList.remove("is-heating");
-    if (roastTimer) { clearInterval(roastTimer); roastTimer = null; }
-  }
-
   function cleanupCandleSecret() {
-    stopRoastHeating();
     stopMicBlow();
     if (blowDarkTimer) { clearTimeout(blowDarkTimer); blowDarkTimer = null; }
     activeSecret = null;
-    roastHeat = 0;
+    roastCompleted = false;
+    roastIsDragging = false;
     document.body.classList.remove("candle-blown", "mirror-abyss-awakened");
     if (candleSecretStage) candleSecretStage.classList.add("hidden");
     if (roastBox) roastBox.classList.add("hidden");
+    if (roastZone) roastZone.classList.remove("is-revealed");
+    if (roastCanvas) roastCanvas.classList.remove("roast-melting");
+    if (roastTorch) roastTorch.classList.add("hidden");
+    if (roastReveal) roastReveal.classList.add("hidden");
+    if (roastTitle) roastTitle.classList.add("hidden");
     if (blowBox) {
       blowBox.classList.add("hidden");
       blowBox.classList.remove("is-extinguishing", "is-extinguished");
     }
   }
 
-  function setRoastHeatUI(val) {
-    roastHeat = Math.max(0, Math.min(1, val));
-    if (roastZone) {
-      roastZone.style.setProperty("--heat-pct", roastHeat.toFixed(3));
+  function initRoastCanvas() {
+    if (!roastCanvas || !roastZone) return;
+    roastCompleted = false;
+    roastIsDragging = false;
+    requestAnimationFrame(function () {
+      const rect = roastZone.getBoundingClientRect();
+      const w = Math.max(280, rect.width || roastZone.offsetWidth || 340);
+      const h = Math.max(120, rect.height || roastZone.offsetHeight || 130);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      roastCanvas.width = Math.round(w * dpr);
+      roastCanvas.height = Math.round(h * dpr);
+      const ctx = roastCanvas.getContext("2d");
+      if (!ctx) return;
+      ctx.scale(dpr, dpr);
+
+      // 填充古董暗层蜡油封层（带深棕与炭黑渐变）
+      const grad = ctx.createLinearGradient(0, 0, w, h);
+      grad.addColorStop(0, "#191423");
+      grad.addColorStop(0.5, "#251c31");
+      grad.addColorStop(1, "#130f1b");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, w, h);
+
+      // 绘制羊皮纸封边虚线框
+      ctx.strokeStyle = "rgba(163, 139, 85, 0.25)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(6, 6, w - 12, h - 12);
+
+      // 绘制引导文字提示
+      ctx.fillStyle = "rgba(217, 180, 110, 0.42)";
+      ctx.font = "13px serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("✦ 移烛近前 · 封蜡待溶 ✦", w / 2, h / 2);
+
+      // 初始化 12 列 x 6 行 碰撞采样网格
+      const rows = 6, cols = 12;
+      roastGrid = [];
+      for (let r = 0; r < rows; r++) {
+        roastGrid[r] = new Array(cols).fill(false);
+      }
+      roastClearedCells = 0;
+      roastTotalCells = rows * cols;
+    });
+  }
+
+  function burnAt(clientX, clientY, customRadius) {
+    if (roastCompleted || !roastCanvas || !roastZone) return;
+    const rect = roastZone.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+
+    if (roastTorch) {
+      roastTorch.classList.remove("hidden");
+      roastTorch.style.left = x + "px";
+      roastTorch.style.top = y + "px";
+    }
+
+    const ctx = roastCanvas.getContext("2d");
+    if (!ctx) return;
+
+    const rad = customRadius || 42;
+    ctx.save();
+    ctx.globalCompositeOperation = "destination-out";
+    // 注意：ctx 在 initRoastCanvas 时已按 dpr scale，此处坐标传参必须使用纯 CSS 逻辑像素 (x, y)，严禁重复乘以 dpr
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, rad);
+    grad.addColorStop(0, "rgba(0, 0, 0, 1)");
+    grad.addColorStop(0.55, "rgba(0, 0, 0, 0.85)");
+    grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (roastGrid) {
+      const rows = roastGrid.length;
+      const cols = roastGrid[0].length;
+      const col = Math.floor((x / rect.width) * cols);
+      const row = Math.floor((y / rect.height) * rows);
+      for (let dr = -1; dr <= 1; dr++) {
+        for (let dc = -1; dc <= 1; dc++) {
+          const r = row + dr, c = col + dc;
+          if (r >= 0 && r < rows && c >= 0 && c < cols && !roastGrid[r][c]) {
+            roastGrid[r][c] = true;
+            roastClearedCells++;
+          }
+        }
+      }
+      const rawPct = Math.min(100, (roastClearedCells / roastTotalCells) * 100);
+      const displayPct = Math.min(100, Math.round(rawPct * 1.38));
+      if (roastProgressLabel) {
+        roastProgressLabel.textContent = "烘烤度 " + displayPct + "%";
+      }
+
+      const now = Date.now();
+      if (now - roastLastSizzle > 240) {
+        roastLastSizzle = now;
+        AudioEngine.playSfx("sizzle");
+      }
+
+      // 给玩家充分一点点照出全句的自由空间，擦出大面积 (>= 72%) 时平滑结算
+      if (rawPct >= 72 && !roastCompleted) {
+        triggerRoastSuccess(false);
+      }
+    }
+  }
+
+  function triggerRoastSuccess(isInstant) {
+    if (roastCompleted || !activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
+    roastCompleted = true;
+    if (roastProgressLabel) roastProgressLabel.textContent = "考据已收录 ✦";
+    if (roastCanvas) roastCanvas.classList.add("roast-melting");
+    if (isInstant || settings.speed === "instant") {
+      completeRoastSecret(activeSecret);
+    } else {
+      AudioEngine.playSfx("sizzle");
+      AudioEngine.playSfx("chime");
+      setTimeout(function () {
+        completeRoastSecret(activeSecret);
+      }, 350);
     }
   }
 
   function renderRoastRevealed(secret) {
-    stopRoastHeating();
-    if (roastZone) roastZone.classList.add("hidden");
+    if (roastZone) {
+      roastZone.classList.remove("hidden");
+      roastZone.classList.add("is-revealed");
+    }
+    if (roastCanvas) {
+      roastCanvas.classList.add("roast-melting");
+    }
+    if (roastTorch) {
+      roastTorch.classList.add("hidden");
+    }
+    if (roastProgressLabel) {
+      roastProgressLabel.textContent = "考据已收录 ✦";
+    }
+    if (roastTitle) {
+      roastTitle.textContent = "✦ " + secret.title;
+      roastTitle.classList.remove("hidden");
+    }
+
     if (roastReveal) roastReveal.classList.remove("hidden");
-    if (roastTitle) roastTitle.textContent = secret.title;
     if (roastCipher) roastCipher.textContent = secret.cipher;
     if (roastText) roastText.textContent = secret.revealText || secret.reveal;
   }
@@ -1216,27 +1353,8 @@
     if (!secret || flags[secret.flag]) return;
     flags[secret.flag] = true;
     unlockRelicsFromFlags(flags);
-    setRoastHeatUI(1);
-    AudioEngine.playSfx("sizzle");
-    AudioEngine.playSfx("chime");
     renderRoastRevealed(secret);
     saveGame();
-  }
-
-  function startRoastHeating() {
-    if (!activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
-    if (roastHeating) return;
-    roastHeating = true;
-    if (roastZone) roastZone.classList.add("is-heating");
-    AudioEngine.playSfx("sizzle");
-    if (roastTimer) clearInterval(roastTimer);
-    roastTimer = setInterval(function () {
-      if (!roastHeating || !activeSecret) return;
-      setRoastHeatUI(roastHeat + 0.045);
-      if (roastHeat >= 1) {
-        completeRoastSecret(activeSecret);
-      }
-    }, 50);
   }
 
   function renderBlowRevealed(secret) {
@@ -1349,15 +1467,20 @@
       if (flags[secret.flag]) {
         renderRoastRevealed(secret);
       } else {
-        setRoastHeatUI(0);
         if (roastZone) {
           roastZone.classList.remove("hidden");
-          roastZone.style.setProperty("--zone-x", "50%");
-          roastZone.style.setProperty("--zone-y", "50%");
+          roastZone.classList.remove("is-revealed");
         }
         if (roastReveal) roastReveal.classList.add("hidden");
+        if (roastTitle) {
+          roastTitle.textContent = "〔 封蜡暗层 · 柠檬汁密信 〕";
+          roastTitle.classList.remove("hidden");
+        }
         if (roastHint) roastHint.textContent = secret.hint;
-        if (roastGhostCipher) roastGhostCipher.textContent = secret.cipher;
+        if (roastCipher) roastCipher.textContent = secret.cipher;
+        if (roastProgressLabel) roastProgressLabel.textContent = "烘烤度 0%";
+        if (roastCanvas) roastCanvas.classList.remove("roast-melting");
+        initRoastCanvas();
       }
       return;
     }
@@ -2346,44 +2469,51 @@
   if (waxSealBtn) {
     waxSealBtn.addEventListener("click", unsealEnvelope);
   }
+  let roastDownX = 0;
+  let roastDownY = 0;
+  let roastHasDragged = false;
+
   if (roastZone) {
-    roastZone.addEventListener("pointerenter", startRoastHeating);
     roastZone.addEventListener("pointerdown", function (e) {
-      const rect = roastZone.getBoundingClientRect();
-      if (rect.width && rect.height) {
-        const zx = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-        const zy = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
-        roastZone.style.setProperty("--zone-x", zx.toFixed(1) + "%");
-        roastZone.style.setProperty("--zone-y", zy.toFixed(1) + "%");
-      }
-      startRoastHeating();
+      try { roastZone.setPointerCapture(e.pointerId); } catch (err) {}
+      roastIsDragging = true;
+      roastHasDragged = false;
+      roastDownX = e.clientX;
+      roastDownY = e.clientY;
+      burnAt(e.clientX, e.clientY, 48);
     });
     roastZone.addEventListener("pointermove", function (e) {
-      const rect = roastZone.getBoundingClientRect();
-      if (rect.width && rect.height) {
-        const zx = Math.max(5, Math.min(95, ((e.clientX - rect.left) / rect.width) * 100));
-        const zy = Math.max(5, Math.min(95, ((e.clientY - rect.top) / rect.height) * 100));
-        roastZone.style.setProperty("--zone-x", zx.toFixed(1) + "%");
-        roastZone.style.setProperty("--zone-y", zy.toFixed(1) + "%");
+      if (roastIsDragging && Math.hypot(e.clientX - roastDownX, e.clientY - roastDownY) > 8) {
+        roastHasDragged = true;
       }
-      if (!roastHeating) startRoastHeating();
+      burnAt(e.clientX, e.clientY, roastIsDragging ? 48 : 38);
     }, { passive: true });
-    roastZone.addEventListener("pointerleave", stopRoastHeating);
-    roastZone.addEventListener("pointerup", stopRoastHeating);
-    roastZone.addEventListener("click", function () {
-      if (!activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
-      if (settings.speed === "instant" || roastHeat >= 0.45) {
-        completeRoastSecret(activeSecret);
-      } else {
-        setRoastHeatUI(roastHeat + 0.55);
-        AudioEngine.playSfx("sizzle");
-        if (roastHeat >= 1) completeRoastSecret(activeSecret);
+    roastZone.addEventListener("pointerup", function (e) {
+      try { roastZone.releasePointerCapture(e.pointerId); } catch (err) {}
+      roastIsDragging = false;
+    });
+    roastZone.addEventListener("pointercancel", function (e) {
+      try { roastZone.releasePointerCapture(e.pointerId); } catch (err) {}
+      roastIsDragging = false;
+      if (roastTorch) roastTorch.classList.add("hidden");
+    });
+    roastZone.addEventListener("pointerleave", function () {
+      if (!roastIsDragging && roastTorch) {
+        roastTorch.classList.add("hidden");
       }
+    });
+    roastZone.addEventListener("click", function () {
+      if (roastHasDragged) {
+        roastHasDragged = false;
+        return;
+      }
+      if (roastCompleted || !activeSecret || activeSecret.mode !== "roast" || flags[activeSecret.flag]) return;
+      triggerRoastSuccess(true);
     });
     roastZone.addEventListener("keydown", function (e) {
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        if (activeSecret && activeSecret.mode === "roast") completeRoastSecret(activeSecret);
+        triggerRoastSuccess(true);
       }
     });
   }

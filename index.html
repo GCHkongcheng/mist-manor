@@ -20,7 +20,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body data-lighting="foyer">
   <!-- 雾气背景层 -->
@@ -171,29 +171,37 @@
       <div id="story-text" class="story-text" aria-live="polite"></div>
       <!-- 烛光显影术交互台：炙烤密文（ch2/ch4/A0）与吹熄蜡烛（B1 镜厅） -->
       <div id="candle-secret-stage" class="candle-secret-stage hidden" role="region" aria-label="烛光探索互动">
-        <!-- 模式一：烛火炙烤显影（柠檬汁密信 / 画布暗层） -->
+        <!-- 模式一：烛火炙烤显影（柠檬汁密信 / 画布暗层：单卡片就地蜕变） -->
         <div id="roast-box" class="roast-box hidden">
-          <div id="roast-zone" class="roast-zone" role="button" tabindex="0" aria-label="移近烛火炙烤羊皮纸暗层">
-            <span class="roast-ember-glow" aria-hidden="true"></span>
-            <div class="roast-ring-wrap" aria-hidden="true">
-              <svg class="roast-ring-svg" viewBox="0 0 44 44">
-                <circle class="roast-ring-bg" cx="22" cy="22" r="18"></circle>
-                <circle id="roast-ring-bar" class="roast-ring-bar" cx="22" cy="22" r="18"></circle>
-              </svg>
-              <span class="roast-flame-icon">🕯️</span>
-            </div>
-            <div class="roast-zone-body">
+          <div id="roast-zone" class="roast-zone" role="button" tabindex="0" aria-label="暗层密信，移烛显影">
+            <!-- 底层：隐形墨水与密文字迹（等待受热显影） -->
+            <div class="roast-underlayer">
+              <div class="roast-underlayer-head">
+                <strong id="roast-title" class="roast-title">〔 封蜡暗层 · 柠檬汁密信 〕</strong>
+                <span id="roast-progress-label" class="roast-progress-label">烘烤度 0%</span>
+              </div>
               <p id="roast-hint" class="roast-hint"></p>
-              <p id="roast-ghost-cipher" class="roast-ghost-cipher" aria-hidden="true"></p>
+              <!-- 唯一核心密文行（被烛火亲手烤出） -->
+              <p id="roast-cipher" class="roast-ghost-cipher" aria-live="polite"></p>
+              <!-- 显影后在同一卡片内平滑展开的剧情考据解析 -->
+              <div id="roast-reveal" class="roast-reveal-body hidden">
+                <p id="roast-text" class="roast-text"></p>
+              </div>
             </div>
-          </div>
-          <div id="roast-reveal" class="roast-reveal hidden" role="status" aria-live="polite">
-            <div class="roast-reveal-head">
-              <span class="roast-reveal-badge">✦ 烛火显影 · 考据线索已镌刻</span>
-              <strong id="roast-title" class="roast-title"></strong>
+            <!-- 顶层：覆盖的暗沉蜡油层 Canvas，被烛火拖动擦除 -->
+            <canvas id="roast-canvas" class="roast-canvas" aria-hidden="true"></canvas>
+            <!-- 跟随指针拖动的烛火与热晕（矢量烛台，火苗核心精准锚定） -->
+            <div id="roast-torch" class="roast-torch hidden" aria-hidden="true">
+              <svg class="roast-torch-svg" viewBox="0 0 24 40" width="24" height="40">
+                <circle cx="12" cy="9" r="7" fill="#ffeaa7" opacity="0.35" />
+                <path class="torch-flame-outer" d="M12 2 C8 7, 7.5 11, 12 14.5 C16.5 11, 16 7, 12 2 Z" fill="#f5b041" />
+                <ellipse class="torch-flame-inner" cx="12" cy="10" rx="1.8" ry="3" fill="#fffdf2" />
+                <line x1="12" y1="14" x2="12" y2="16.5" stroke="#4a3525" stroke-width="1.2" stroke-linecap="round" />
+                <rect x="9.5" y="16.5" width="5" height="21" rx="1" fill="#c9bba6" />
+                <rect x="7" y="36.5" width="10" height="2.5" rx="1" fill="#8f7b5c" />
+              </svg>
+              <span class="roast-ember-glow"></span>
             </div>
-            <p id="roast-cipher" class="roast-cipher"></p>
-            <p id="roast-text" class="roast-text"></p>
           </div>
         </div>
         <!-- 模式二：吹熄蜡烛 · 屏息凝神（B1 镜厅专属） -->
