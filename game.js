@@ -2021,17 +2021,29 @@
 
   // ---------- 进度备份导出 / 导入（面板内联交互，无阻塞弹窗） ----------
   function exportBackup() {
-    const payload = {
-      v: 1,
-      gallery: getGallery(),
-      cards: getCards(),
-      relics: getRelics(),
-      save: loadSave()
-    };
-    const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-    fallbackCopy(code);
-    exportBtn.textContent = "备份码已复制";
-    setTimeout(function () { exportBtn.textContent = "导出备份码"; }, 1800);
+    try {
+      const payload = {
+        v: 1,
+        gallery: getGallery(),
+        cards: getCards(),
+        relics: getRelics(),
+        save: loadSave()
+      };
+      const code = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+      copyToClipboard(code);
+      if (exportBtn) {
+        exportBtn.textContent = "备份码已复制 ✓";
+        setTimeout(function () { exportBtn.textContent = "导出备份码"; }, 2000);
+      }
+      showToast("备份码已复制到剪贴板！可发至微信或备忘录保存");
+    } catch (err) {
+      console.error("导出备份码失败:", err);
+      if (exportBtn) {
+        exportBtn.textContent = "导出失败";
+        setTimeout(function () { exportBtn.textContent = "导出备份码"; }, 1500);
+      }
+      showToast("导出备份码失败，请重试");
+    }
   }
   function applyBackupCode(raw) {
     const trimmed = String(raw || "").trim();

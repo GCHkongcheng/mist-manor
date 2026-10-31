@@ -127,7 +127,11 @@ const testScript = `
     slot0SaveBtn.click();
     assert("二次点击确认后完成覆盖并恢复按钮文案", slot0SaveBtn.textContent === "存");
 
-    // 测试面板内联进度备份导入（无阻塞弹窗）
+    // 测试导出备份码与面板内联导入（无阻塞弹窗）
+    var exportBtn = document.getElementById("export-btn");
+    exportBtn.click();
+    assert("点击导出备份码触发状态反馈与剪贴板写入", exportBtn.textContent.indexOf("已复制") >= 0);
+
     document.getElementById("import-btn").click();
     var importBox = document.getElementById("import-box");
     assert("点击导入恢复展开内联输入框", !importBox.classList.contains("hidden"));
